@@ -1,0 +1,22 @@
+{
+    "appTitle": "هوتيل ستريم",
+    "welcome": "مرحباً",
+    "channels": "القنوات التلفزيونية",
+    "selectChannel": "اختر قناة لبدء المشاهدة",
+    "live": "مباشر",
+    "category": "الفئة",
+    "all": "الكل",
+    "entertainment": "ترفيه",
+    "news": "أخبار",
+    "general": "عام",
+    "regional": "محلي",
+    "business": "أعمال",
+    "national": "وطني",
+    "religious": "ديني",
+    "sports": "رياضة",
+    "culture": "ثقافة",
+    "languageSelect": "اختر اللغة",
+    "english": "الإنجليزية",
+    "french": "الفرنسية",
+    "arabic": "العربية"
+}

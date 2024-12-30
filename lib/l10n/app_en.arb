@@ -1,0 +1,22 @@
+{
+    "appTitle": "Hotel Stream",
+    "welcome": "Welcome",
+    "channels": "TV Channels",
+    "selectChannel": "Select a channel to start watching",
+    "live": "LIVE",
+    "category": "Category",
+    "all": "All",
+    "entertainment": "Entertainment",
+    "news": "News",
+    "general": "General",
+    "regional": "Regional",
+    "business": "Business",
+    "national": "National",
+    "religious": "Religious",
+    "sports": "Sports",
+    "culture": "Culture",
+    "languageSelect": "Select Language",
+    "english": "English",
+    "french": "French",
+    "arabic": "Arabic"
+}
