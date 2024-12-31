@@ -1,65 +1,42 @@
-name: Streamer App
+name: iOS-ipa-build
 
 on:
   workflow_dispatch:
 
 jobs:
   build-ios:
-    name: 🎉 Streamer Build
+    name: 🎉 iOS Build
     runs-on: macos-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Set Up Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           architecture: x64
+      - run: flutter pub get
+      
 
-      - name: Install Flutter Dependencies
-        run: flutter pub get
-
-      - name: Update CocoaPods Repo
-        run: pod repo update
+      - run: pod repo update
         working-directory: ios
 
-      - name: Build iOS App
-        run: flutter build ios --release --no-codesign
+      - run: flutter build ios --release --no-codesign
 
-      - name: Debug List Build Directory
-        run: ls -R build/ios/iphoneos
-
-      - name: Validate Runner.app Exists
-        run: |
-          if [ ! -d "build/ios/iphoneos/Runner.app" ]; then
-            echo "Error: Runner.app not found!"
-            exit 1
-          fi
-
-      - name: Prepare Payload Directory
-        run: |
-          mkdir Payload
-          mv build/ios/iphoneos/Runner.app Payload/
+      - run: mkdir Payload
         working-directory: build/ios/iphoneos
 
-      - name: Create IPA File
-        run: zip -qq -r -9 Streammer.ipa Payload
+      - run: mv Runner.app/ Payload
         working-directory: build/ios/iphoneos
 
-      - name: Upload Release
+      - name: Zip output
+        run: zip -qq -r -9 FlutterIpaExport.ipa Payload
+        working-directory: build/ios/iphoneos
+
+      - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
-          repo_token: ${{ secrets.PAT_TOKEN }}
-          file: build/ios/iphoneos/Streammer.ipa
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/ios/iphoneos/FlutterIpaExport.ipa
           tag: v1.0
           overwrite: true
-          body: "This is the first release"
-
-      - name: Create Tag (if not exists)
-        run: |
-          git fetch --tags
-          if ! git tag | grep -q "v1.0"; then
-            git tag v1.0
-            git push origin v1.0
-          fi
+          body: "This is first release"
