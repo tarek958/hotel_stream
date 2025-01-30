@@ -736,169 +736,114 @@ class _ChannelsScreenState extends State<ChannelsScreen>
         if (isLandscape) {
           // Grid view for landscape mode
           return GridView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
               childAspectRatio: 0.85,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
             ),
             itemCount: _filteredChannels.length,
             itemBuilder: (context, index) {
               final channel = _filteredChannels[index];
               final isSelected = _selectedChannel?.id == channel.id;
 
-              return TVFocusable(
-                id: 'channel_${channel.id}',
-                focusColor: AppColors.primary,
-                onSelect: () => _selectChannel(channel),
-                autofocus:
-                    index == 0 && !_isCategoryFocused && !_isLanguageFocused,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: isSelected
-                              ? [
-                                  AppColors.primary.withOpacity(0.3),
-                                  AppColors.accent.withOpacity(0.3),
-                                ]
-                              : [
-                                  AppColors.surface.withOpacity(0.3),
-                                  AppColors.surface.withOpacity(0.1),
-                                ],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppColors.primary.withOpacity(0.5)
-                              : AppColors.primary.withOpacity(0.1),
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Channel Logo
-                            Expanded(
-                              flex: 3,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: AppColors.primary.withOpacity(0.1),
-                                  ),
-                                ),
-                                child: ClipOval(
-                                  child: channel.logoUrl != null &&
-                                          channel.logoUrl.isNotEmpty
-                                      ? Image.network(
-                                          channel.logoUrl,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  _buildDefaultChannelIcon(),
-                                        )
-                                      : _buildDefaultChannelIcon(),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            // Channel Name
-                            Expanded(
-                              flex: 1,
-                              child: Text(
-                                channel.name,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? AppColors.primary
-                                      : AppColors.text,
-                                  fontSize: 14,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            // Bottom row with category and live status
-                            SizedBox(
-                              height: 24,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  if (channel.isLive)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.red.withOpacity(0.9),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: const [
-                                          Icon(
-                                            Icons.circle,
-                                            color: Colors.white,
-                                            size: 6,
-                                          ),
-                                          SizedBox(width: 3),
-                                          Text(
-                                            'LIVE',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  if (channel.isLive) const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color:
-                                            AppColors.primary.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        channel.category,
-                                        style: TextStyle(
-                                          color: AppColors.primary,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+              return SizedBox(
+                width: 380, // Fixed width for cards
+                child: TVFocusable(
+                  id: 'channel_${channel.id}',
+                  focusColor: AppColors.primary,
+                  onSelect: () => _selectChannel(channel),
+                  autofocus: index == 0 && !_isCategoryFocused && !_isLanguageFocused,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: isSelected
+                                ? [
+                                    AppColors.primary.withOpacity(0.3),
+                                    AppColors.accent.withOpacity(0.3),
+                                  ]
+                                : [
+                                    AppColors.surface.withOpacity(0.3),
+                                    AppColors.surface.withOpacity(0.1),
+                                  ],
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.primary.withOpacity(0.5)
+                                : AppColors.primary.withOpacity(0.1),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
                             ),
                           ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Channel Logo
+                              Expanded(
+                                child: Container(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 120,
+                                    maxHeight: 120,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: AppColors.primary.withOpacity(0.1),
+                                    ),
+                                  ),
+                                  child: ClipOval(
+                                    child: channel.logoUrl != null &&
+                                            channel.logoUrl.isNotEmpty
+                                        ? Image.network(
+                                            channel.logoUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    _buildDefaultChannelIcon(),
+                                          )
+                                        : _buildDefaultChannelIcon(),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              // Channel Name
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxHeight: 48,
+                                ),
+                                child: Text(
+                                  channel.name,
+                                  style: TextStyle(
+                                    color: isSelected ? AppColors.primary : AppColors.text,
+                                    fontSize: 14,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -923,25 +868,26 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                 id: 'channel_${channel.id}',
                 focusColor: AppColors.primary,
                 onSelect: () => _selectChannel(channel),
-                autofocus:
-                    index == 0 && !_isCategoryFocused && !_isLanguageFocused,
+                autofocus: index == 0 && !_isCategoryFocused && !_isLanguageFocused,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                     child: Container(
                       decoration: BoxDecoration(
-                        gradient: isSelected
-                            ? LinearGradient(
-                                colors: [
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: isSelected
+                              ? [
                                   AppColors.primary.withOpacity(0.3),
                                   AppColors.accent.withOpacity(0.3),
+                                ]
+                              : [
+                                  AppColors.surface.withOpacity(0.3),
+                                  AppColors.surface.withOpacity(0.1),
                                 ],
-                              )
-                            : null,
-                        color: isSelected
-                            ? null
-                            : AppColors.surface.withOpacity(0.3),
+                        ),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: isSelected
@@ -950,35 +896,34 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.1),
+                            color: Colors.black.withOpacity(0.1),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
                         ],
                       ),
-                      child: Material(
-                        color: Colors.transparent,
+                      child: SizedBox(
+                        height: 72,
                         child: ListTile(
-                          contentPadding: const EdgeInsets.all(16),
-                          leading: ClipOval(
-                            child: Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
+                          contentPadding: const EdgeInsets.all(8),
+                          leading: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: AppColors.surface.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(
                                 color: AppColors.primary.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: AppColors.primary.withOpacity(0.1),
-                                ),
                               ),
+                            ),
+                            child: ClipOval(
                               child: channel.logoUrl != null &&
                                       channel.logoUrl.isNotEmpty
                                   ? Image.network(
                                       channel.logoUrl,
                                       fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              _buildDefaultChannelIcon(),
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          _buildDefaultChannelIcon(),
                                     )
                                   : _buildDefaultChannelIcon(),
                             ),
@@ -986,52 +931,13 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                           title: Text(
                             channel.name,
                             style: TextStyle(
-                              color: isSelected
-                                  ? AppColors.text
-                                  : AppColors.text.withOpacity(0.9),
-                              fontSize: 18,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              letterSpacing: 0.5,
+                              color: isSelected ? AppColors.primary : AppColors.text,
+                              fontSize: 16,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          subtitle: Text(
-                            channel.category,
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 14,
-                            ),
-                          ),
-                          trailing: channel.isLive
-                              ? Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: const [
-                                      Icon(
-                                        Icons.circle,
-                                        color: Colors.white,
-                                        size: 8,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'LIVE',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : null,
                         ),
                       ),
                     ),
@@ -1067,67 +973,89 @@ class _ChannelsScreenState extends State<ChannelsScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (_selectedChannel != null && _chewieController != null)
-              GestureDetector(
-                onDoubleTap: () {
-                  if (_error == null &&
-                      !_isDisposed &&
-                      _chewieController != null) {
-                    if (_isFullScreen) {
-                      _chewieController!.exitFullScreen();
-                    } else {
-                      _chewieController!.enterFullScreen();
+              Focus(
+                onKey: (node, event) {
+                  if (event is RawKeyDownEvent) {
+                    if (event.logicalKey == LogicalKeyboardKey.select ||
+                        event.logicalKey == LogicalKeyboardKey.enter) {
+                      if (_error == null && !_isDisposed && _chewieController != null) {
+                        setState(() {
+                          if (_isFullScreen) {
+                            _chewieController!.exitFullScreen();
+                          } else {
+                            _chewieController!.enterFullScreen();
+                          }
+                          _isFullScreen = !_isFullScreen;
+                        });
+                      }
+                      return KeyEventResult.handled;
                     }
                   }
+                  return KeyEventResult.ignored;
                 },
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.primary.withOpacity(0.1),
+                child: GestureDetector(
+                  onDoubleTap: () {
+                    if (_error == null && !_isDisposed && _chewieController != null) {
+                      setState(() {
+                        if (_isFullScreen) {
+                          _chewieController!.exitFullScreen();
+                        } else {
+                          _chewieController!.enterFullScreen();
+                        }
+                        _isFullScreen = !_isFullScreen;
+                      });
+                    }
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.surface.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.1),
+                        ),
                       ),
-                    ),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: Stack(
-                        children: [
-                          Chewie(controller: _chewieController!),
-                          if (_error == null && !_isFullScreen)
-                            Positioned(
-                              right: 16,
-                              bottom: 16,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.touch_app,
-                                      color: AppColors.primary,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Double-tap for fullscreen',
-                                      style: TextStyle(
-                                        color: AppColors.text,
-                                        fontSize: 12,
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: Stack(
+                          children: [
+                            Chewie(controller: _chewieController!),
+                            if (_error == null && !_isFullScreen)
+                              Positioned(
+                                right: 16,
+                                bottom: 16,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.fullscreen,
+                                        color: AppColors.primary,
+                                        size: 16,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isLandscape ? 'Press OK for fullscreen' : 'Double-tap for fullscreen',
+                                        style: TextStyle(
+                                          color: AppColors.text,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

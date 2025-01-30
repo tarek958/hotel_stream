@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
 class ChannelService {
-  static const String baseUrl = 'http://51.83.97.190/rmd.php';
+  static const String baseUrl = 'http://51.83.97.190/channell.json';
   static const String _cacheFileName = 'channel_cache.json';
   static const Duration _cacheValidDuration = Duration(hours: 24);
 
