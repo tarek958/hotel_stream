@@ -35,9 +35,15 @@ class AppLocalizations {
       'english': 'English',
       'french': 'French',
       'arabic': 'Arabic',
+      'channelOffline': 'Channel is currently offline',
+      'noChannels': 'No channels available',
+      'noInternetConnection': 'No internet connection. Please check your network settings.',
+      'channelNotFound': 'Channel not found or no longer available',
+      'accessDenied': 'Access to this channel is restricted',
+      'retry': 'Retry'
     },
     'fr': {
-      'appTitle': 'Hotel Stream',
+      'appTitle': 'Diffusion Hôtel',
       'welcome': 'Bienvenue',
       'channels': 'Chaînes TV',
       'selectChannel': 'Sélectionnez une chaîne pour commencer à regarder',
@@ -53,24 +59,30 @@ class AppLocalizations {
       'religious': 'Religieux',
       'sports': 'Sports',
       'culture': 'Culture',
-      'languageSelect': 'Choisir la langue',
+      'languageSelect': 'Sélectionner la langue',
       'english': 'Anglais',
       'french': 'Français',
       'arabic': 'Arabe',
+      'channelOffline': 'La chaîne est actuellement hors ligne',
+      'noChannels': 'Aucune chaîne disponible',
+      'noInternetConnection': 'Pas de connexion Internet. Veuillez vérifier vos paramètres réseau',
+      'channelNotFound': 'Chaîne introuvable ou non disponible',
+      'accessDenied': "L'accès à cette chaîne est restreint",
+      'retry': 'Réessayer'
     },
     'ar': {
-      'appTitle': 'هوتيل ستريم',
+      'appTitle': 'بث الفندق',
       'welcome': 'مرحباً',
       'channels': 'القنوات التلفزيونية',
       'selectChannel': 'اختر قناة لبدء المشاهدة',
       'live': 'مباشر',
       'category': 'الفئة',
       'all': 'الكل',
-      'entertainment': 'ترفيه',
-      'news': 'أخبار',
+      'entertainment': 'الترفيه',
+      'news': 'الأخبار',
       'general': 'عام',
       'regional': 'محلي',
-      'business': 'أعمال',
+      'business': 'الأعمال',
       'national': 'وطني',
       'religious': 'ديني',
       'sports': 'رياضة',
@@ -79,14 +91,20 @@ class AppLocalizations {
       'english': 'الإنجليزية',
       'french': 'الفرنسية',
       'arabic': 'العربية',
+      'channelOffline': 'القناة غير متصلة حالياً',
+      'noChannels': 'لا توجد قنوات متاحة',
+      'noInternetConnection': 'لا يوجد اتصال بالإنترنت. يرجى التحقق من إعدادات الشبكة',
+      'channelNotFound': 'القناة غير موجودة أو لم تعد متاحة',
+      'accessDenied': 'الوصول إلى هذه القناة مقيد',
+      'retry': 'إعادة المحاولة'
     },
   };
 
   String get appTitle => _localizedValues[locale.languageCode]!['appTitle']!;
   String get welcome => _localizedValues[locale.languageCode]!['welcome']!;
-  String get channels => _localizedValues[locale.languageCode]!['channels']!;
+  String get channels => Intl.message('Channels', name: 'channels');
   String get selectChannel => _localizedValues[locale.languageCode]!['selectChannel']!;
-  String get live => _localizedValues[locale.languageCode]!['live']!;
+  String get live => Intl.message('LIVE', name: 'live');
   String get category => _localizedValues[locale.languageCode]!['category']!;
   String get all => _localizedValues[locale.languageCode]!['all']!;
   String get entertainment => _localizedValues[locale.languageCode]!['entertainment']!;
@@ -102,6 +120,12 @@ class AppLocalizations {
   String get english => _localizedValues[locale.languageCode]!['english']!;
   String get french => _localizedValues[locale.languageCode]!['french']!;
   String get arabic => _localizedValues[locale.languageCode]!['arabic']!;
+  String get channelOffline => _localizedValues[locale.languageCode]!['channelOffline'] ?? 'Channel is currently offline';
+  String get noChannels => _localizedValues[locale.languageCode]!['noChannels'] ?? 'No channels available';
+  String get noInternetConnection => _localizedValues[locale.languageCode]!['noInternetConnection'] ?? 'No internet connection. Please check your network settings.';
+  String get channelNotFound => _localizedValues[locale.languageCode]!['channelNotFound'] ?? 'Channel not found or no longer available';
+  String get accessDenied => _localizedValues[locale.languageCode]!['accessDenied'] ?? 'Access to this channel is restricted';
+  String get retry => _localizedValues[locale.languageCode]!['retry'] ?? 'Retry';
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

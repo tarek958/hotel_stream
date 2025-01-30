@@ -3,9 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/intro_screen.dart';
+import 'screens/offline_screen.dart';
 import 'providers/language_provider.dart';
+import 'providers/connectivity_provider.dart';
+import 'providers/hotel_provider.dart';
+import 'providers/theme_provider.dart';
 import 'constants/app_constants.dart';
 import 'l10n/app_localizations.dart';
+import 'providers/publicity_provider.dart';
+import 'services/tv_focus_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,9 +21,16 @@ void main() {
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
+  TVFocusService().initialize();
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => LanguageProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
+        ChangeNotifierProvider(create: (_) => HotelProvider()),
+        ChangeNotifierProvider(create: (_) => PublicityProvider()),
+      ],
       child: const MyApp(),
     ),
   );
@@ -37,9 +50,9 @@ class MyApp extends StatelessWidget {
             primaryColor: AppColors.primary,
             scaffoldBackgroundColor: AppColors.background,
             textTheme: Theme.of(context).textTheme.apply(
-              bodyColor: AppColors.text,
-              displayColor: AppColors.text,
-            ),
+                  bodyColor: AppColors.text,
+                  displayColor: AppColors.text,
+                ),
           ),
           locale: languageProvider.currentLocale,
           localizationsDelegates: const [
@@ -53,7 +66,14 @@ class MyApp extends StatelessWidget {
             Locale('fr'),
             Locale('ar'),
           ],
-          home: const IntroScreen(),
+          home: Consumer<HotelProvider>(
+            builder: (context, hotelProvider, child) {
+              if (hotelProvider.isOffline) {
+                return const OfflineScreen();
+              }
+              return const IntroScreen();
+            },
+          ),
         );
       },
     );

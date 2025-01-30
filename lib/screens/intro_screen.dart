@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/hotel_provider.dart';
 import '../constants/app_constants.dart';
 import 'home_screen.dart';
 
@@ -17,6 +19,12 @@ class _IntroScreenState extends State<IntroScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
+    // Initialize hotel info
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<HotelProvider>().loadHotelInfo('your_hotel_id');
+      }
+    });
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 3),
@@ -120,13 +128,29 @@ class _IntroScreenState extends State<IntroScreen> with SingleTickerProviderStat
                         ),
                         const SizedBox(height: 40),
                         // Welcome text with modern typography
-                        const Text(
-                          'LUXURY HOTEL',
-                          style: TextStyle(
-                            color: AppColors.text,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 4,
+                        Center(
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 600),
+                            child: ShaderMask(
+                              shaderCallback: (bounds) => LinearGradient(
+                                colors: [
+                                  AppColors.primary,
+                                  AppColors.accent,
+                                ],
+                              ).createShader(bounds),
+                              child: Text(
+                                context.watch<HotelProvider>().hotelName.toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 48,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 4,
+                                ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 2,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),

@@ -18,5 +18,11 @@
     "languageSelect": "Select Language",
     "english": "English",
     "french": "French",
-    "arabic": "Arabic"
+    "arabic": "Arabic",
+    "channelOffline": "Channel is currently offline",
+    "noChannels": "No channels available",
+    "noInternetConnection": "No internet connection. Please check your network settings.",
+    "channelNotFound": "Channel not found or no longer available",
+    "accessDenied": "Access to this channel is restricted",
+    "retry": "Retry"
 }

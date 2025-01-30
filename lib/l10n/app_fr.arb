@@ -1,8 +1,8 @@
 {
-    "appTitle": "Hotel Stream",
+    "appTitle": "Diffusion Hôtel",
     "welcome": "Bienvenue",
     "channels": "Chaînes TV",
-    "selectChannel": "Sélectionnez une chaîne pour commencer à regarder",
+    "selectChannel": "Sélectionnez une chaîne pour commencer",
     "live": "EN DIRECT",
     "category": "Catégorie",
     "all": "Tout",
@@ -15,8 +15,14 @@
     "religious": "Religieux",
     "sports": "Sports",
     "culture": "Culture",
-    "languageSelect": "Choisir la langue",
+    "languageSelect": "Sélectionner la langue",
     "english": "Anglais",
     "french": "Français",
-    "arabic": "Arabe"
+    "arabic": "Arabe",
+    "channelOffline": "La chaîne est actuellement hors ligne",
+    "noChannels": "Aucune chaîne disponible",
+    "noInternetConnection": "Pas de connexion Internet. Veuillez vérifier vos paramètres réseau",
+    "channelNotFound": "Chaîne introuvable ou non disponible",
+    "accessDenied": "L'accès à cette chaîne est restreint",
+    "retry": "Réessayer"
 }
