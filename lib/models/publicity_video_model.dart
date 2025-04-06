@@ -13,11 +13,38 @@ class PublicityVideo {
     this.localPath,
   });
 
+  // Handle different variations of JSON field names and formats
   factory PublicityVideo.fromJson(Map<String, dynamic> json) {
+    print('Parsing video JSON: $json');
+
+    // Get ID with fallbacks
+    final String videoId = json['id']?.toString() ??
+        json['video_id']?.toString() ??
+        json['publicityId']?.toString() ??
+        '';
+
+    // Get URL with fallbacks for different field names
+    final String url = json['video_url']?.toString() ??
+        json['videoUrl']?.toString() ??
+        json['url']?.toString() ??
+        '';
+
+    // Parse timestamp with fallbacks
+    DateTime parsedTimestamp;
+    try {
+      final timeStr = json['timestamp']?.toString() ??
+          json['created_at']?.toString() ??
+          DateTime.now().toIso8601String();
+      parsedTimestamp = DateTime.parse(timeStr);
+    } catch (e) {
+      print('Error parsing timestamp: $e');
+      parsedTimestamp = DateTime.now();
+    }
+
     return PublicityVideo(
-      id: json['id'] as String,
-      videoUrl: json['video_url'] as String,
-      timestamp: DateTime.parse(json['timestamp'] as String),
+      id: videoId,
+      videoUrl: url,
+      timestamp: parsedTimestamp,
       localPath: json['local_path'] as String?,
     );
   }
@@ -29,5 +56,10 @@ class PublicityVideo {
       'timestamp': timestamp.toIso8601String(),
       'local_path': localPath,
     };
+  }
+
+  @override
+  String toString() {
+    return 'PublicityVideo(id: $id, url: $videoUrl, timestamp: $timestamp)';
   }
 }

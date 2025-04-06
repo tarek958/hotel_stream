@@ -5,16 +5,10 @@ import '../providers/language_provider.dart';
 import '../constants/app_constants.dart';
 import 'dart:ui';
 import '../widgets/tv_focusable.dart';
+import '../services/tv_focus_service.dart';
 
-class LanguageSelector extends StatefulWidget {
+class LanguageSelector extends StatelessWidget {
   const LanguageSelector({super.key});
-
-  @override
-  State<LanguageSelector> createState() => _LanguageSelectorState();
-}
-
-class _LanguageSelectorState extends State<LanguageSelector> {
-  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -24,70 +18,6 @@ class _LanguageSelectorState extends State<LanguageSelector> {
 
     return Consumer<LanguageProvider>(
       builder: (context, languageProvider, child) {
-        return TVFocusable(
-          id: 'language_selector',
-          onSelect: () => _showLanguageDialog(context, languageProvider),
-          child: GestureDetector(
-            onTap: () => _showLanguageDialog(context, languageProvider),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              decoration: BoxDecoration(
-                color: AppColors.surface.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.primary.withOpacity(0.2),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              padding: EdgeInsets.symmetric(
-                horizontal: isPortrait ? 12 : 16,
-                vertical: 12,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _getLanguageFlag(
-                        languageProvider.currentLocale.languageCode),
-                    style: const TextStyle(fontSize: 24),
-                  ),
-                  if (!isPortrait) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      _getLanguageName(
-                          languageProvider.currentLocale.languageCode),
-                      style: TextStyle(
-                        color: AppColors.text,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.arrow_drop_down,
-                      color: AppColors.text,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showLanguageDialog(BuildContext context, LanguageProvider languageProvider) async {
-    final selectedLocale = await showDialog<Locale>(
-      context: context,
-      builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.all(16),
@@ -123,7 +53,8 @@ class _LanguageSelectorState extends State<LanguageSelector> {
                   children: [
                     // Header with glass effect
                     ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(20)),
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                         child: Container(
@@ -171,39 +102,49 @@ class _LanguageSelectorState extends State<LanguageSelector> {
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         itemCount: LanguageProvider.supportedLocales.length,
                         itemBuilder: (context, index) {
-                          final entry = LanguageProvider.supportedLocales.entries.elementAt(index);
+                          final entry = LanguageProvider
+                              .supportedLocales.entries
+                              .elementAt(index);
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
                             child: TVFocusable(
                               id: 'language_option_$index',
-                              autofocus: index == _selectedIndex,
                               onSelect: () {
-                                Navigator.of(context).pop(entry.value);
+                                languageProvider.setLocale(entry.value);
+                                Navigator.of(context).pop();
                               },
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: BackdropFilter(
-                                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                                   child: Material(
                                     color: Colors.transparent,
                                     child: InkWell(
                                       onTap: () {
-                                        Navigator.of(context).pop(entry.value);
+                                        languageProvider.setLocale(entry.value);
+                                        Navigator.of(context).pop();
                                       },
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 20, vertical: 16),
                                         decoration: BoxDecoration(
                                           gradient: LinearGradient(
                                             begin: Alignment.topLeft,
                                             end: Alignment.bottomRight,
                                             colors: [
-                                              AppColors.surface.withOpacity(0.3),
-                                              AppColors.surface.withOpacity(0.1),
+                                              AppColors.surface
+                                                  .withOpacity(0.3),
+                                              AppColors.surface
+                                                  .withOpacity(0.1),
                                             ],
                                           ),
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                           border: Border.all(
-                                            color: AppColors.primary.withOpacity(0.1),
+                                            color: AppColors.primary
+                                                .withOpacity(0.1),
                                           ),
                                         ),
                                         child: Row(
@@ -212,37 +153,43 @@ class _LanguageSelectorState extends State<LanguageSelector> {
                                               width: 40,
                                               height: 40,
                                               decoration: BoxDecoration(
-                                                color: AppColors.primary.withOpacity(0.1),
+                                                color: AppColors.primary
+                                                    .withOpacity(0.1),
                                                 shape: BoxShape.circle,
                                                 border: Border.all(
-                                                  color: AppColors.primary.withOpacity(0.2),
+                                                  color: AppColors.primary
+                                                      .withOpacity(0.2),
                                                 ),
                                               ),
                                               child: Center(
                                                 child: Text(
                                                   _getLanguageFlag(entry.key),
-                                                  style: const TextStyle(fontSize: 24),
+                                                  style: const TextStyle(
+                                                      fontSize: 24),
                                                 ),
                                               ),
                                             ),
                                             const SizedBox(width: 16),
                                             Expanded(
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
                                                     _getLanguageName(entry.key),
                                                     style: TextStyle(
                                                       color: AppColors.text,
                                                       fontSize: 16,
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                     ),
                                                   ),
                                                   const SizedBox(height: 4),
                                                   Text(
                                                     entry.key.toUpperCase(),
                                                     style: TextStyle(
-                                                      color: AppColors.textSecondary,
+                                                      color: AppColors
+                                                          .textSecondary,
                                                       fontSize: 12,
                                                     ),
                                                   ),
@@ -251,7 +198,8 @@ class _LanguageSelectorState extends State<LanguageSelector> {
                                             ),
                                             Icon(
                                               Icons.chevron_right,
-                                              color: AppColors.primary.withOpacity(0.5),
+                                              color: AppColors.primary
+                                                  .withOpacity(0.5),
                                             ),
                                           ],
                                         ),
@@ -273,10 +221,6 @@ class _LanguageSelectorState extends State<LanguageSelector> {
         );
       },
     );
-
-    if (selectedLocale != null) {
-      Provider.of<LanguageProvider>(context, listen: false).setLocale(selectedLocale);
-    }
   }
 
   String _getLanguageFlag(String languageCode) {

@@ -6,50 +6,121 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/publicity_video_model.dart';
 
 class PublicityService {
-  static const String API_URL = 'http://51.83.97.190/publicity.json';
+  static const String API_URL = 'http://196.203.12.163:2509/pu.json';
   static const String CACHE_KEY = 'publicity_videos';
-  static const Duration CACHE_DURATION = Duration(hours: 24);
+  static const Duration CACHE_DURATION =
+      Duration(minutes: 15); // Reduced to ensure fresh data
 
   Future<List<PublicityVideo>> getPublicityVideos() async {
-    final prefs = await SharedPreferences.getInstance();
-    final cachedData = prefs.getString(CACHE_KEY);
-    final cacheTimestamp = prefs.getInt('${CACHE_KEY}_timestamp');
-
-    // Check if cache is valid
-    if (cachedData != null && cacheTimestamp != null) {
-      final cacheAge = DateTime.now().difference(
-        DateTime.fromMillisecondsSinceEpoch(cacheTimestamp),
-      );
-      if (cacheAge < CACHE_DURATION) {
-        final List<dynamic> jsonList = json.decode(cachedData);
-        return jsonList.map((json) => PublicityVideo.fromJson(json)).toList();
-      }
-    }
-
     try {
-      // Fetch fresh data from API
-      final response = await http.get(Uri.parse(API_URL));
+      // Print request information for debugging
+      print('Fetching publicity videos from: $API_URL');
+
+      // Try to use direct HTTP for better cross-platform compatibility
+      final response = await http.get(Uri.parse(API_URL), headers: {
+        'User-Agent': 'HotelStream/1.0',
+        'Connection': 'Keep-Alive',
+        'Cache-Control': 'no-cache'
+      });
+
+      print('Response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
-        final List<dynamic> jsonList = json.decode(response.body);
-        final videos =
-            jsonList.map((json) => PublicityVideo.fromJson(json)).toList();
+        // Print raw response for debugging
+        print('Raw response body: ${response.body}');
 
-        // Update cache
-        await prefs.setString(CACHE_KEY, response.body);
-        await prefs.setInt(
-            '${CACHE_KEY}_timestamp', DateTime.now().millisecondsSinceEpoch);
+        if (response.body.isEmpty) {
+          print('Received empty response body');
+          return [];
+        }
 
-        return videos;
+        try {
+          // Try to decode as JSON array
+          final dynamic jsonData = json.decode(response.body);
+          print('Decoded JSON: $jsonData');
+
+          List<dynamic> jsonList;
+          // Handle both array and single object responses
+          if (jsonData is List) {
+            jsonList = jsonData;
+          } else if (jsonData is Map) {
+            // If it's a single object, wrap it in a list
+            jsonList = [jsonData];
+          } else {
+            throw Exception(
+                'Unexpected response format - not a List or Map: ${jsonData.runtimeType}');
+          }
+
+          print('Processing ${jsonList.length} videos from API');
+
+          // Map each JSON object to a PublicityVideo
+          final videos = jsonList
+              .map((json) {
+                try {
+                  return PublicityVideo.fromJson(json);
+                } catch (e) {
+                  print('Error parsing video: $e');
+                  print('Problematic JSON: $json');
+                  // Return null for failed items - we'll filter these out below
+                  return null;
+                }
+              })
+              .where((video) => video != null)
+              .cast<PublicityVideo>()
+              .toList();
+
+          print(
+              'Successfully parsed ${videos.length} of ${jsonList.length} videos');
+
+          // Update cache
+          _updateCache(jsonList);
+
+          return videos;
+        } catch (parseError) {
+          print('Error parsing JSON: $parseError');
+          // Try to parse with more lenient approach or fall back to cache
+          return _loadFromCache();
+        }
       } else {
-        throw Exception('Failed to load publicity videos');
+        print('API Error: ${response.statusCode} - ${response.body}');
+        // If API call fails, try to use cached data
+        return _loadFromCache();
       }
     } catch (e) {
-      // If offline and cache exists, return cached data regardless of age
+      print('Failed to load publicity videos: $e');
+      // If offline or error, return cached data
+      return _loadFromCache();
+    }
+  }
+
+  Future<List<PublicityVideo>> _loadFromCache() async {
+    try {
+      print('Attempting to load videos from cache');
+      final prefs = await SharedPreferences.getInstance();
+      final cachedData = prefs.getString(CACHE_KEY);
+
       if (cachedData != null) {
+        print('Found cached data');
         final List<dynamic> jsonList = json.decode(cachedData);
         return jsonList.map((json) => PublicityVideo.fromJson(json)).toList();
       }
-      rethrow;
+      print('No cache found');
+    } catch (e) {
+      print('Error loading from cache: $e');
+    }
+
+    return []; // Return empty list if no cache or error
+  }
+
+  Future<void> _updateCache(List<dynamic> jsonList) async {
+    try {
+      print('Updating cache with ${jsonList.length} videos');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(CACHE_KEY, json.encode(jsonList));
+      await prefs.setInt(
+          '${CACHE_KEY}_timestamp', DateTime.now().millisecondsSinceEpoch);
+    } catch (e) {
+      print('Error updating cache: $e');
     }
   }
 

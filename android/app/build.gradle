@@ -28,17 +28,71 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled true
     }
 
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            signingConfig signingConfigs.debug
+            
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            
+            // Enable more detailed logging for troubleshooting
+            buildConfigField "boolean", "ENABLE_DEBUG", "false"
         }
+        
+        debug {
+            minifyEnabled false
+            shrinkResources false
+            
+            // Enable logging
+            buildConfigField "boolean", "ENABLE_DEBUG", "true"
+        }
+    }
+    
+    // Fix for ExoPlayer issues in release builds
+    packagingOptions {
+        pickFirst 'lib/x86/libc++_shared.so'
+        pickFirst 'lib/x86_64/libc++_shared.so'
+        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+        pickFirst 'lib/arm64-v8a/libc++_shared.so'
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/license.txt'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/NOTICE.txt'
+        exclude 'META-INF/notice.txt'
+        exclude 'META-INF/ASL2.0'
+        exclude("META-INF/*.kotlin_module")
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 }
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Add ExoPlayer dependencies for better HLS stream support
+    implementation 'androidx.media3:media3-exoplayer:1.2.1'
+    implementation 'androidx.media3:media3-exoplayer-hls:1.2.1'
+    implementation 'androidx.media3:media3-exoplayer-dash:1.2.1'
+    implementation 'androidx.media3:media3-ui:1.2.1'
+    
+    // Add OkHttp for better network handling with streaming
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    
+    // Ensure compatibility with better_player
+    implementation 'com.google.android.exoplayer:exoplayer-core:2.18.7'
+    implementation 'com.google.android.exoplayer:exoplayer-hls:2.18.7'
+    implementation 'com.google.android.exoplayer:exoplayer-dash:2.18.7'
+    implementation 'com.google.android.exoplayer:exoplayer-ui:2.18.7'
 }
 

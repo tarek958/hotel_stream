@@ -11,6 +11,8 @@ class TVFocusable extends StatefulWidget {
   final VoidCallback? onSelect;
   final EdgeInsets padding;
   final bool autofocus;
+  final bool isCategory; // Flag to identify category buttons
+  final FocusNode? focusNode; // Optional external focus node
 
   const TVFocusable({
     Key? key,
@@ -22,6 +24,8 @@ class TVFocusable extends StatefulWidget {
     this.onSelect,
     this.padding = const EdgeInsets.all(4.0),
     this.autofocus = false,
+    this.isCategory = false, // Default to false
+    this.focusNode, // Optional external focus node
   }) : super(key: key);
 
   @override
@@ -35,15 +39,35 @@ class _TVFocusableState extends State<TVFocusable> {
   @override
   void initState() {
     super.initState();
-    _focusNode = _service.registerFocusable(widget.id);
+    print('TVFocusable[${widget.id}]: Initializing');
+
+    // Use provided focus node or register a new one
+    if (widget.focusNode != null) {
+      _focusNode = widget.focusNode!;
+      print('TVFocusable[${widget.id}]: Using provided focus node');
+    } else {
+      _focusNode = _service.registerFocusable(widget.id);
+      print('TVFocusable[${widget.id}]: Registered new focus node');
+    }
+
+    _focusNode.addListener(() {
+      print(
+          'TVFocusable[${widget.id}]: Focus changed to ${_focusNode.hasFocus}');
+    });
+
     if (widget.autofocus) {
+      print('TVFocusable[${widget.id}]: Requesting autofocus');
       _focusNode.requestFocus();
     }
   }
 
   @override
   void dispose() {
-    _service.unregisterFocusable(widget.id);
+    print('TVFocusable[${widget.id}]: Disposing');
+    // Only unregister if we created the focus node ourselves
+    if (widget.focusNode == null) {
+      _service.unregisterFocusable(widget.id);
+    }
     super.dispose();
   }
 
@@ -52,21 +76,40 @@ class _TVFocusableState extends State<TVFocusable> {
     return Focus(
       focusNode: _focusNode,
       onFocusChange: (hasFocus) {
+        print(
+            'TVFocusable[${widget.id}]: onFocusChange called with hasFocus=$hasFocus');
         if (mounted) {
           setState(() {});
         }
       },
       onKey: (node, event) {
-        if (event is RawKeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.select ||
-                event.logicalKey == LogicalKeyboardKey.enter)) {
-          widget.onSelect?.call();
-          return KeyEventResult.handled;
+        print('TVFocusable[${widget.id}]: Key event: ${event.logicalKey}');
+
+        if (event is RawKeyDownEvent) {
+          // Handle select/enter key
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter) {
+            print(
+                'TVFocusable[${widget.id}]: Select/Enter key pressed, calling onSelect');
+            widget.onSelect?.call();
+            return KeyEventResult.handled;
+          }
+
+          // For category buttons, let arrow keys be handled by parent
+          if (widget.isCategory) {
+            print(
+                'TVFocusable[${widget.id}]: Category button ignoring arrow key for parent');
+            return KeyEventResult.ignored;
+          }
         }
+
         return KeyEventResult.ignored;
       },
       child: GestureDetector(
-        onTap: widget.onSelect,
+        onTap: () {
+          print('TVFocusable[${widget.id}]: Tapped');
+          widget.onSelect?.call();
+        },
         child: Container(
           padding: widget.padding,
           decoration: BoxDecoration(

@@ -7,14 +7,14 @@ import '../utils/connectivity_util.dart';
 class HotelProvider with ChangeNotifier {
   final ChannelService _channelService = ChannelService();
   List<Channel> _channels = [];
-  List<Bouquet> _categories = [];
+  List<Bouquet> _bouquets = [];
   bool _isLoading = false;
   bool _isOffline = false;
   String? _error;
   String _hotelName = '';
 
   List<Channel> get channels => _channels;
-  List<Bouquet> get categories => _categories;
+  List<Bouquet> get bouquets => _bouquets;
   bool get isLoading => _isLoading;
   bool get isOffline => _isOffline;
   String? get error => _error;
@@ -28,7 +28,7 @@ class HotelProvider with ChangeNotifier {
     try {
       // For now, we'll just set a default hotel name
       // TODO: Implement actual hotel info fetching
-      _hotelName = 'Hotel Stream';
+      _hotelName = 'One Resort';
       _error = null;
     } catch (e) {
       _error = 'Failed to load hotel info: $e';
@@ -46,9 +46,9 @@ class HotelProvider with ChangeNotifier {
 
     try {
       final response = await _channelService.getChannelsAndCategories();
-      
+
       _channels = response.channels;
-      _categories = response.categories;
+      _bouquets = response.categories;
       _isOffline = response.isOffline;
       _error = null;
     } catch (e) {

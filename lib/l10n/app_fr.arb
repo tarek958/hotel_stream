@@ -1,7 +1,7 @@
 {
     "appTitle": "Diffusion Hôtel",
     "welcome": "Bienvenue",
-    "channels": "Chaînes TV",
+    "channels": "Chaînes",
     "selectChannel": "Sélectionnez une chaîne pour commencer",
     "live": "EN DIRECT",
     "category": "Catégorie",
@@ -24,5 +24,18 @@
     "noInternetConnection": "Pas de connexion Internet. Veuillez vérifier vos paramètres réseau",
     "channelNotFound": "Chaîne introuvable ou non disponible",
     "accessDenied": "L'accès à cette chaîne est restreint",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "welcomeMessage": "Bienvenue à One Resort",
+    "info": "Info",
+    "weather": "Météo",
+    "language": "Langue",
+    "selectLanguage": "Sélectionner la langue",
+    "current": "Actuel",
+    "languageResetMessage": "La langue sera réinitialisée en anglais dans {days} jours",
+    "back": "Retour",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "fullscreen": "Plein écran",
+    "exitFullscreen": "Quitter le plein écran",
+    "channelList": "Liste des chaînes"
 }

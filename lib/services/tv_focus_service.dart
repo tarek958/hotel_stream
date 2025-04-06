@@ -114,21 +114,38 @@ class TVFocusService {
 
   // Register a widget as focusable
   FocusNode registerFocusable(String id, {FocusNode? existingNode}) {
+    print('TVFocusService: Registering focusable with id: $id');
     if (_focusNodes.containsKey(id)) {
+      print('TVFocusService: Returning existing focus node for id: $id');
       return _focusNodes[id]!;
     }
 
     final node = existingNode ?? FocusNode(debugLabel: id);
     _focusNodes[id] = node;
+    print(
+        'TVFocusService: Created new focus node for id: $id, total nodes: ${_focusNodes.length}');
+
+    // Add a listener to track focus changes
+    node.addListener(() {
+      if (node.hasFocus) {
+        print('TVFocusService: Node $id gained focus');
+        _currentFocus = node;
+      }
+    });
+
     return node;
   }
 
   // Unregister a focusable widget
   void unregisterFocusable(String id) {
+    print('TVFocusService: Unregistering focusable with id: $id');
     if (_currentFocus == _focusNodes[id]) {
+      print('TVFocusService: Current focus was on $id, setting to null');
       _currentFocus = null;
     }
     _focusNodes.remove(id);
+    print(
+        'TVFocusService: After unregistering, total nodes: ${_focusNodes.length}');
   }
 
   void dispose() {

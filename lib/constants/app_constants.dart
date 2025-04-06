@@ -32,7 +32,7 @@ class AppColors {
 }
 
 class AppStrings {
-  static const String appName = 'Hotel Stream';
+  static const String appName = 'One Resort';
   static const List<String> welcomeMessages = [
     'Welcome to our Hotel',
     'Bienvenue à notre Hôtel',

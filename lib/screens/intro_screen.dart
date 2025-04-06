@@ -1,7 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/hotel_provider.dart';
-import '../constants/app_constants.dart';
+import 'package:video_player/video_player.dart';
 import 'home_screen.dart';
 
 class IntroScreen extends StatefulWidget {
@@ -11,50 +10,30 @@ class IntroScreen extends StatefulWidget {
   State<IntroScreen> createState() => _IntroScreenState();
 }
 
-class _IntroScreenState extends State<IntroScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+class _IntroScreenState extends State<IntroScreen> {
+  late VideoPlayerController _videoController;
+  bool _isDisposed = false;
 
   @override
   void initState() {
     super.initState();
-    // Initialize hotel info
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        context.read<HotelProvider>().loadHotelInfo('your_hotel_id');
-      }
-    });
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    );
+    _isDisposed = false;
+    _initializeVideo();
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
-      ),
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
-      ),
-    );
-
-    _controller.forward();
-
-    Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) {
+    // Navigate to home screen after 10 seconds
+    Timer(const Duration(seconds: 10), () {
+      if (mounted && !_isDisposed) {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 const HomeScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
             },
             transitionDuration: const Duration(milliseconds: 800),
           ),
@@ -63,164 +42,53 @@ class _IntroScreenState extends State<IntroScreen> with SingleTickerProviderStat
     });
   }
 
+  void _initializeVideo() async {
+    try {
+      _videoController = VideoPlayerController.asset('assets/videos/intro.mp4');
+      await _videoController.initialize();
+
+      if (!_isDisposed && mounted) {
+        setState(() {});
+        _videoController.play();
+        _videoController.setLooping(false);
+      }
+    } catch (e) {
+      print('Error initializing intro video: $e');
+      // If video fails to load, navigate to home screen early
+      if (!_isDisposed && mounted) {
+        Timer(const Duration(seconds: 2), () {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          }
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
-    _controller.dispose();
+    _isDisposed = true;
+    _videoController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: Stack(
-        children: [
-          // Animated background pattern
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                return CustomPaint(
-                  painter: BackgroundPatternPainter(
-                    progress: _controller.value,
-                    primaryColor: AppColors.primary.withOpacity(0.1),
-                    secondaryColor: AppColors.accent.withOpacity(0.05),
-                  ),
-                );
-              },
-            ),
-          ),
-          
-          // Main content
-          Center(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _scaleAnimation.value,
-                  child: FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Logo container with glow effect
-                        Container(
-                          width: 160,
-                          height: 160,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.surface,
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primary.withOpacity(0.2),
-                                blurRadius: 30,
-                                spreadRadius: 10,
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Icon(
-                              Icons.hotel,
-                              size: 80,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 40),
-                        // Welcome text with modern typography
-                        Center(
-                          child: Container(
-                            constraints: const BoxConstraints(maxWidth: 600),
-                            child: ShaderMask(
-                              shaderCallback: (bounds) => LinearGradient(
-                                colors: [
-                                  AppColors.primary,
-                                  AppColors.accent,
-                                ],
-                              ).createShader(bounds),
-                              child: Text(
-                                context.watch<HotelProvider>().hotelName.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 48,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 4,
-                                ),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: const Text(
-                            'By Sotupub',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w300,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+      backgroundColor: Colors.black,
+      body: Center(
+        child: _videoController.value.isInitialized
+            ? AspectRatio(
+                aspectRatio: _videoController.value.aspectRatio,
+                child: VideoPlayer(_videoController),
+              )
+            : const CircularProgressIndicator(
+                color: Colors.white,
+              ),
       ),
     );
   }
-}
-
-class BackgroundPatternPainter extends CustomPainter {
-  final double progress;
-  final Color primaryColor;
-  final Color secondaryColor;
-
-  BackgroundPatternPainter({
-    required this.progress,
-    required this.primaryColor,
-    required this.secondaryColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-
-    const spacing = 30.0;
-    final lineCount = (size.width / spacing).ceil() + 1;
-
-    for (var i = 0; i < lineCount; i++) {
-      final x = i * spacing;
-      final startY = size.height * (1 - progress);
-      
-      paint.color = i % 2 == 0 ? primaryColor : secondaryColor;
-      
-      canvas.drawLine(
-        Offset(x, startY),
-        Offset(x, size.height),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(BackgroundPatternPainter oldDelegate) =>
-      progress != oldDelegate.progress;
 }

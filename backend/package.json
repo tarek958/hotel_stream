@@ -1,7 +1,7 @@
 {
   "name": "hotel-stream-backend",
   "version": "1.0.0",
-  "description": "Backend API for Hotel Stream application",
+  "description": "Backend API for One Resort application",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
