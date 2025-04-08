@@ -7,6 +7,11 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.MANAGE_DEVICE_ADMINS" />
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
 
     <!-- TV app requirements -->
     <uses-feature
@@ -45,7 +50,63 @@
                 <category android:name="android.intent.category.HOME"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
+            
+            <!-- Intercept Netflix and content app launches -->
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="netflix" />
+            </intent-filter>
+            
+            <!-- Intercept YouTube launch -->
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="youtube" />
+            </intent-filter>
+            
+            <!-- Intercept Amazon Prime Video launch -->
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="amazon" />
+            </intent-filter>
         </activity>
+
+        <!-- Activity Aliases to capture Netflix, YouTube and other content apps -->
+        <activity-alias
+            android:name=".NetflixActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter android:priority="2000">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="netflix" />
+                <data android:host="*" />
+            </intent-filter>
+            <intent-filter android:priority="2000">
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <data android:host="netflix.com" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".YouTubeActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter android:priority="2000">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="youtube" />
+                <data android:host="*" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- Auto-start on boot -->
         <receiver
@@ -55,6 +116,34 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
+        
+        <!-- Intercept content app launches -->
+        <receiver
+            android:name=".ContentAppReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:priority="999">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="netflix" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.netflix.action.NETFLIX" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:exported="true" android:name="flutter.lock.task.flutter_lock_task.DeviceAdmin" android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data android:name="android.app.device_admin" android:resource="@xml/policies" />
+            <intent-filter android:exported="true">
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+                <action android:name="android.app.action.ACTION_DEVICE_ADMIN_DISABLE_REQUESTED" />
+                <action android:name="android.app.action.ACTION_DEVICE_ADMIN_DISABLED" />
+                <action android:name="android.intent.action.PROFILE_PROVISIONING_COMPLETE"/>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
 

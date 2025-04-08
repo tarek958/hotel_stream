@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'dart:math';
 import '../constants/app_constants.dart';
 import '../widgets/language_selector.dart';
 import '../widgets/tv_focusable.dart';
@@ -98,15 +99,16 @@ class _ChannelsScreenState extends State<ChannelsScreen>
     // Initialize slide animation for channel list
     _slideController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200), // Faster animation
+      duration: const Duration(
+          milliseconds: 50), // Super fast animation, almost instant
     );
 
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(1, 0),
+      begin: const Offset(0, 0), // Start from already visible position
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _slideController,
-      curve: Curves.easeOut, // Smoother animation curve
+      curve: Curves.linear, // Use linear for fastest transition
     ));
 
     // IMPORTANT: Load channels first to get categories
@@ -286,18 +288,20 @@ class _ChannelsScreenState extends State<ChannelsScreen>
   }
 
   void _toggleChannelList() {
-    HapticFeedback.mediumImpact();
     setState(() {
       _showChannelList = !_showChannelList;
       if (_showChannelList) {
-        _slideController.forward();
+        // Skip animation and just show the list immediately
+        _slideController.value = 1.0; // Set to end value directly
+
         // Reset selection to current channel
         final currentIndex =
             _filteredChannels.indexWhere((c) => c.id == _selectedChannel?.id);
         _selectedChannelIndex = currentIndex >= 0 ? currentIndex : 0;
         _ensureItemVisible(_selectedChannelIndex);
       } else {
-        _slideController.reverse();
+        // Skip animation when hiding list too
+        _slideController.value = 0.0; // Set to start value directly
       }
     });
   }
@@ -373,10 +377,20 @@ class _ChannelsScreenState extends State<ChannelsScreen>
         },
         videoPlayerOptions: VideoPlayerOptions(
           mixWithOthers: true,
+          allowBackgroundPlayback: false,
         ),
       );
 
       await _videoController!.initialize();
+
+      // Set preferred quality - forcing highest quality available
+      await _videoController!.setVolume(1.0);
+      await _videoController!.setPlaybackSpeed(1.0);
+
+      // Make sure video is properly sized for high resolution
+      final videoWidth = max(1280, _videoController!.value.size.width);
+      final videoHeight = max(720, _videoController!.value.size.height);
+      final aspectRatio = videoWidth / videoHeight;
 
       if (!mounted) return;
 
@@ -389,7 +403,18 @@ class _ChannelsScreenState extends State<ChannelsScreen>
         showControls: false,
         showOptions: false,
         allowFullScreen: false,
+        aspectRatio: aspectRatio,
         deviceOrientationsAfterFullScreen: [DeviceOrientation.landscapeLeft],
+        zoomAndPan: true,
+        customControls: const SizedBox.shrink(),
+        placeholder: Container(
+          color: Colors.black,
+          child: const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+            ),
+          ),
+        ),
       );
 
       if (mounted) {
@@ -464,6 +489,7 @@ class _ChannelsScreenState extends State<ChannelsScreen>
 
   KeyEventResult _handleFullscreenKeyPress(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
+      print('Handling fullscreen key press: ${event.logicalKey}');
       // Handle all key events within the channel screen
       if (event.logicalKey == LogicalKeyboardKey.select ||
           event.logicalKey == LogicalKeyboardKey.enter) {
@@ -492,21 +518,31 @@ class _ChannelsScreenState extends State<ChannelsScreen>
         return KeyEventResult.handled;
       } else if (event.logicalKey == LogicalKeyboardKey.escape ||
           event.logicalKey == LogicalKeyboardKey.goBack) {
+        print('Goback key pressed in _handleFullscreenKeyPress');
+        print(
+            'Current state - Fullscreen: $_isFullScreen, ShowChannelList: $_showChannelList');
+
         if (_isFullScreen) {
+          print(
+              'In fullscreen mode, handling goback key inside _handleFullscreenKeyPress');
           if (_showChannelList) {
+            print('Channel list is showing, toggling it off');
             _toggleChannelList();
           } else {
+            print('Exiting fullscreen mode but STAYING on channels screen');
             setState(() {
               _isFullScreen = false;
               _showChannelList = false;
             });
           }
-          return KeyEventResult.handled;
-        } else {
-          // Only navigate back to home if not in fullscreen
-          Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+
+          // Very important! Explicitly handle this key and prevent further processing
+          print('Explicitly marking goBack key as handled');
           return KeyEventResult.handled;
         }
+        // Let parent handlers manage non-fullscreen goBack
+        print('Not in fullscreen, passing to parent handler');
+        return KeyEventResult.ignored;
       } else if (event.logicalKey == LogicalKeyboardKey.space) {
         // Add a space key handler to toggle channel list
         if (_isFullScreen) {
@@ -527,27 +563,47 @@ class _ChannelsScreenState extends State<ChannelsScreen>
   void _ensureItemVisible(int index) {
     if (!_channelListScrollController.hasClients) return;
 
-    final itemHeight = 48.0; // Approximate height of each ListTile
-    final listViewHeight =
+    final itemHeight = 180.0; // Approximate height of each grid item
+    final viewportHeight =
         _channelListScrollController.position.viewportDimension;
     final currentScrollOffset = _channelListScrollController.offset;
 
-    final itemOffset = index * itemHeight;
+    // Calculate the position of the item
+    final itemOffset = (index ~/ 4) * itemHeight; // 4 items per row
     final itemEndOffset = itemOffset + itemHeight;
 
-    if (itemOffset < currentScrollOffset) {
-      _channelListScrollController.animateTo(
-        itemOffset,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-      );
-    } else if (itemEndOffset > currentScrollOffset + listViewHeight) {
-      _channelListScrollController.animateTo(
-        itemEndOffset - listViewHeight,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-      );
+    // Calculate the center position of the viewport
+    final viewportCenter = currentScrollOffset + (viewportHeight / 2);
+    final itemCenter = itemOffset + (itemHeight / 2);
+
+    // Calculate the target scroll position to center the item
+    var targetOffset = itemCenter - (viewportHeight / 2);
+
+    // Ensure we don't scroll past the top or bottom
+    targetOffset = targetOffset.clamp(
+        0.0, _channelListScrollController.position.maxScrollExtent);
+
+    // Add some padding for the top rows to ensure they're fully visible
+    if (index < 4) {
+      // First row
+      targetOffset = 0.0;
+    } else if (index < 8) {
+      // Second row
+      targetOffset = itemHeight * 0.5;
+    } else if (index < 12) {
+      // Third row
+      targetOffset = itemHeight * 1.5;
+    } else {
+      // For all other rows, center the item in the viewport
+      targetOffset = itemCenter - (viewportHeight / 2);
     }
+
+    // Animate to the target position
+    _channelListScrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+    );
   }
 
   void _showConnectionError(BuildContext context) {
@@ -572,13 +628,16 @@ class _ChannelsScreenState extends State<ChannelsScreen>
 
     return WillPopScope(
       onWillPop: () async {
+        print('WillPopScope: intercepting back navigation');
         if (_isFullScreen) {
+          print('WillPopScope: in fullscreen mode, preventing default back');
           setState(() {
             _isFullScreen = false;
             _showChannelList = false;
           });
           return false; // Prevent default back behavior
         }
+        print('WillPopScope: navigating to home page');
         // Navigate to home page instead of using default back behavior
         Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
         return false; // Prevent default back navigation
@@ -589,6 +648,17 @@ class _ChannelsScreenState extends State<ChannelsScreen>
 
           // Only handle key down events
           if (!(event is RawKeyDownEvent)) return KeyEventResult.ignored;
+
+          // When in fullscreen video mode, delegate to fullscreen handler first
+          if (_isFullScreen) {
+            print(
+                'Root handler: in fullscreen mode, delegating to fullscreen handler');
+            final result = _handleFullscreenKeyPress(event);
+            if (result == KeyEventResult.handled) {
+              print('Root handler: fullscreen handler processed the key');
+              return KeyEventResult.handled;
+            }
+          }
 
           // Root level navigation for navbar/categories
           if (_isNavbarFocused) {
@@ -697,11 +767,6 @@ class _ChannelsScreenState extends State<ChannelsScreen>
             }
           }
 
-          // When in fullscreen video mode
-          if (_isFullScreen) {
-            return _handleFullscreenKeyPress(event);
-          }
-
           return KeyEventResult.ignored;
         },
         child: Scaffold(
@@ -744,6 +809,7 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                                       scrollController:
                                           _channelListScrollController,
                                       isVisible: _showChannelList,
+                                      currentChannel: _selectedChannel,
                                     ),
                                   ),
                                 ),
@@ -778,7 +844,10 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                                 filter:
                                     ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                                 child: Container(
-                                  padding: const EdgeInsets.all(24),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: AppColors.surface.withOpacity(0.5),
                                     border: Border(
@@ -846,23 +915,34 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                                                         ? Colors.white
                                                         : AppColors.primary
                                                             .withOpacity(0.7),
+                                                    size: 20,
                                                   ),
+                                                  padding:
+                                                      const EdgeInsets.all(8),
                                                   onPressed: () {
                                                     print(
                                                         'Back button pressed');
-                                                    // Reset orientation before navigating back
-                                                    SystemChrome
-                                                        .setPreferredOrientations([
-                                                      DeviceOrientation
-                                                          .landscapeLeft,
-                                                      DeviceOrientation
-                                                          .landscapeRight,
-                                                    ]);
-                                                    Navigator
-                                                        .pushNamedAndRemoveUntil(
-                                                            context,
-                                                            '/home',
-                                                            (route) => false);
+                                                    if (_isFullScreen) {
+                                                      setState(() {
+                                                        _isFullScreen = false;
+                                                        _showChannelList =
+                                                            false;
+                                                      });
+                                                    } else {
+                                                      _cleanupControllers();
+                                                      SystemChrome
+                                                          .setPreferredOrientations([
+                                                        DeviceOrientation
+                                                            .landscapeLeft,
+                                                        DeviceOrientation
+                                                            .landscapeRight,
+                                                      ]);
+                                                      Navigator
+                                                          .pushNamedAndRemoveUntil(
+                                                              context,
+                                                              '/home',
+                                                              (route) => false);
+                                                    }
                                                   },
                                                 ),
                                               ),
@@ -1069,187 +1149,161 @@ class _ChannelsScreenState extends State<ChannelsScreen>
         }
         return KeyEventResult.ignored;
       },
-      child: GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
-          childAspectRatio: 0.75,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-        ),
-        itemCount: _filteredChannels.length,
-        itemBuilder: (context, index) {
-          final channel = _filteredChannels[index];
-          final isSelected = index == _selectedChannelIndex;
-          final isPlaying = _selectedChannel?.id == channel.id &&
-              _error == null &&
-              _chewieController != null;
-
-          return TVFocusable(
-            id: 'channel_${channel.id}',
-            onSelect: () {
-              setState(() {
-                _selectedChannelIndex = index;
-                _isNavbarFocused = false;
-              });
-              _onChannelSelected(channel);
-            },
-            child: Stack(
-              children: [
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedChannelIndex = index;
-                    });
-                    _onChannelSelected(channel);
-                  },
-                  borderRadius: BorderRadius.circular(24),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: isPlaying
-                          ? LinearGradient(
-                              colors: [
-                                AppColors.primary.withOpacity(0.3),
-                                AppColors.accent.withOpacity(0.3),
-                              ],
-                            )
-                          : null,
-                      color:
-                          isPlaying ? null : AppColors.surface.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.primary.withOpacity(0.1),
-                        width: isSelected ? 2 : 1,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Channel logo
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Image.network(
-                              channel.logo,
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Icon(
-                                  Icons.tv,
-                                  color: AppColors.primary.withOpacity(0.5),
-                                  size: 48,
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                        // Channel name
-                        Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Text(
-                            channel.name,
-                            style: TextStyle(
-                              color: isPlaying
-                                  ? AppColors.primary
-                                  : AppColors.text,
-                              fontWeight: isPlaying
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (isSelected)
-                  Positioned(
-                    left: -8,
-                    top: 50,
-                    child: Icon(
-                      Icons.arrow_right,
-                      color: AppColors.primary,
-                      size: 32,
-                    ),
-                  ),
-                if (isPlaying)
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: AppColors.accent,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          );
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification is ScrollEndNotification) {
+            // After scrolling ends, ensure the selected item is visible
+            _ensureItemVisible(_selectedChannelIndex);
+          }
+          return true;
         },
+        child: GridView.builder(
+          controller: _channelListScrollController,
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            childAspectRatio: 0.8,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
+          itemCount: _filteredChannels.length,
+          itemBuilder: (context, index) {
+            final channel = _filteredChannels[index];
+            final isSelected = index == _selectedChannelIndex;
+            final isPlaying = _selectedChannel?.id == channel.id &&
+                _error == null &&
+                _chewieController != null;
+
+            return TVFocusable(
+              id: 'channel_${channel.id}',
+              onSelect: () {
+                setState(() {
+                  _selectedChannelIndex = index;
+                  _isNavbarFocused = false;
+                });
+                _ensureItemVisible(index);
+                _onChannelSelected(channel);
+              },
+              child: Stack(
+                children: [
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedChannelIndex = index;
+                      });
+                      _ensureItemVisible(index);
+                      _onChannelSelected(channel);
+                    },
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      width: 160,
+                      height: 200,
+                      decoration: BoxDecoration(
+                        gradient: isPlaying
+                            ? LinearGradient(
+                                colors: [
+                                  AppColors.primary.withOpacity(0.3),
+                                  AppColors.accent.withOpacity(0.3),
+                                ],
+                              )
+                            : null,
+                        color: isPlaying
+                            ? null
+                            : AppColors.surface.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.primary.withOpacity(0.1),
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Channel logo
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Image.network(
+                                channel.logo,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Icon(
+                                    Icons.tv,
+                                    color: AppColors.primary.withOpacity(0.5),
+                                    size: 48,
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          // Channel name
+                          Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(
+                              channel.name,
+                              style: TextStyle(
+                                color: isPlaying
+                                    ? AppColors.primary
+                                    : AppColors.text,
+                                fontWeight: isPlaying
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (isSelected)
+                    Positioned(
+                      left: -8,
+                      top: 50,
+                      child: Icon(
+                        Icons.arrow_right,
+                        color: AppColors.primary,
+                        size: 32,
+                      ),
+                    ),
+                  if (isPlaying)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: AppColors.accent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
   Widget _buildFullScreenChannelList() {
-    return ListView.builder(
-      controller: _channelListScrollController,
-      padding: const EdgeInsets.all(16),
-      itemCount: _filteredChannels.length,
-      itemBuilder: (context, index) {
-        final channel = _filteredChannels[index];
-        final isSelected = index == _selectedChannelIndex;
-        final isPlaying = _selectedChannel?.id == channel.id;
-
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.primary.withOpacity(0.2)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? AppColors.primary : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          child: ListTile(
-            leading: Image.network(
-              channel.logo,
-              width: 40,
-              height: 40,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(Icons.tv, color: AppColors.primary),
-                );
-              },
-            ),
-            title: Text(
-              channel.name,
-              style: TextStyle(
-                color: isPlaying ? AppColors.accent : Colors.white,
-                fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-            trailing: isPlaying
-                ? const Icon(Icons.play_arrow, color: AppColors.accent)
-                : null,
-            onTap: () => _onChannelSelected(channel),
-          ),
-        );
-      },
+    return AnimatedOpacity(
+      opacity: _showChannelList ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 300),
+      child: FullscreenChannelList(
+        channels: _filteredChannels,
+        selectedIndex: _selectedChannelIndex,
+        onChannelSelected: _onChannelSelected,
+        scrollController: _channelListScrollController,
+        isVisible: _showChannelList,
+        currentChannel: _selectedChannel,
+      ),
     );
   }
 
@@ -1354,6 +1408,7 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                                         scrollController:
                                             _channelListScrollController,
                                         isVisible: _showChannelList,
+                                        currentChannel: _selectedChannel,
                                       ),
                                     ),
                                   ),
@@ -1503,7 +1558,28 @@ class _ChannelsScreenState extends State<ChannelsScreen>
     }
 
     if (_chewieController != null) {
-      return Chewie(controller: _chewieController!);
+      return Container(
+        color: Colors.black,
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: _isFullScreen
+                ? MediaQuery.of(context).size.aspectRatio
+                : 16 / 9,
+            child: FittedBox(
+              fit: BoxFit.fill,
+              child: SizedBox(
+                width: _isFullScreen
+                    ? max(1920, _videoController!.value.size.width)
+                    : max(1280, _videoController!.value.size.width),
+                height: _isFullScreen
+                    ? max(1080, _videoController!.value.size.height)
+                    : max(720, _videoController!.value.size.height),
+                child: Chewie(controller: _chewieController!),
+              ),
+            ),
+          ),
+        ),
+      );
     }
 
     // Show loading state instead of empty container
@@ -2097,6 +2173,7 @@ class FullScreenChannelList extends StatelessWidget {
   final Function(Channel) onChannelSelected;
   final ScrollController scrollController;
   final bool isVisible;
+  final Channel? currentChannel;
 
   const FullScreenChannelList({
     super.key,
@@ -2105,6 +2182,7 @@ class FullScreenChannelList extends StatelessWidget {
     required this.onChannelSelected,
     required this.scrollController,
     required this.isVisible,
+    required this.currentChannel,
   });
 
   @override
@@ -2113,59 +2191,97 @@ class FullScreenChannelList extends StatelessWidget {
         'Building FullScreenChannelList with ${channels.length} channels, selected: $selectedIndex');
     return Container(
       color: Colors.black.withOpacity(0.85),
-      child: ListView.builder(
-        controller: scrollController,
-        padding: const EdgeInsets.all(16),
-        itemCount: channels.length,
-        itemBuilder: (context, index) {
-          final channel = channels[index];
-          final isSelected = index == selectedIndex;
-          print(
-              'Building channel item: ${channel.name}, isSelected: $isSelected');
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height *
+            0.6, // Fixed height at 60% of screen
+        child: ListView.builder(
+          controller: scrollController,
+          padding: const EdgeInsets.all(16),
+          itemCount: channels.length,
+          itemBuilder: (context, index) {
+            final channel = channels[index];
+            final isSelected = index == selectedIndex;
+            final isPlaying = channel.id == currentChannel?.id;
+            print(
+                'Building channel item: ${channel.name}, isSelected: $isSelected');
 
-          return Container(
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? AppColors.primary.withOpacity(0.2)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isSelected ? AppColors.primary : Colors.transparent,
-                width: 2,
-              ),
-            ),
-            child: ListTile(
-              leading: Image.network(
-                channel.logo,
-                width: 40,
-                height: 40,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.tv, color: AppColors.primary),
-                  );
-                },
-              ),
-              title: Text(
-                channel.name,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            // Calculate the position to center the selected item
+            if (isSelected && scrollController.hasClients) {
+              final itemHeight = 80.0; // Approximate height of each list item
+              final viewportHeight =
+                  scrollController.position.viewportDimension;
+              final targetOffset = (index * itemHeight) -
+                  (viewportHeight / 2) +
+                  (itemHeight / 2);
+
+              // Ensure we don't scroll past the top or bottom
+              final clampedOffset = targetOffset.clamp(
+                  0.0, scrollController.position.maxScrollExtent);
+
+              // Animate to the target position
+              scrollController.animateTo(
+                clampedOffset,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+              );
+            }
+
+            return Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                gradient: isPlaying
+                    ? LinearGradient(
+                        colors: [
+                          AppColors.primary.withOpacity(0.3),
+                          AppColors.accent.withOpacity(0.3),
+                        ],
+                      )
+                    : null,
+                color: isPlaying ? null : AppColors.surface.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected
+                      ? AppColors.primary
+                      : AppColors.primary.withOpacity(0.1),
+                  width: isSelected ? 2 : 1,
                 ),
               ),
-              onTap: () {
-                print('Channel tapped: ${channel.name}');
-                onChannelSelected(channel);
-              },
-            ),
-          );
-        },
+              child: ListTile(
+                leading: Image.network(
+                  channel.logo,
+                  width: 40,
+                  height: 40,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.tv, color: AppColors.primary),
+                    );
+                  },
+                ),
+                title: Text(
+                  channel.name,
+                  style: TextStyle(
+                    color: isPlaying ? AppColors.primary : Colors.white,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                trailing: isPlaying
+                    ? const Icon(Icons.play_arrow, color: AppColors.accent)
+                    : null,
+                onTap: () {
+                  print('Channel tapped: ${channel.name}');
+                  onChannelSelected(channel);
+                },
+              ),
+            );
+          },
+        ),
       ),
     );
   }

@@ -19,6 +19,7 @@ import 'providers/publicity_provider.dart';
 import 'services/tv_focus_service.dart';
 import 'providers/weather_provider.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart' as gen;
+import 'widgets/kiosk_mode_widget.dart';
 
 void main() {
   // Add error handling to prevent crashes
@@ -111,6 +112,11 @@ class MyApp extends StatelessWidget {
                   );
               }
             },
+            home: KioskModeWidget(
+              child: IntroScreen(),
+              autoEnableKiosk: true,
+              detectFallbackOnStartup: true,
+            ),
           );
         },
       ),

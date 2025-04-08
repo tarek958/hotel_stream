@@ -8,7 +8,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/code_entry_widget.dart';
 import '../widgets/tv_focusable.dart';
 import '../widgets/news_ticker.dart';
+import '../providers/connectivity_provider.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart' as gen;
+import 'package:provider/provider.dart';
 
 class InfoScreen extends StatefulWidget {
   const InfoScreen({super.key});
@@ -31,6 +33,7 @@ class _InfoScreenState extends State<InfoScreen> {
   final FocusNode _codeFocusNode = FocusNode();
   final FocusNode _screenFocusNode = FocusNode();
   bool _isBackButtonSelected = false;
+  bool _isEthernet = false;
 
   @override
   void initState() {
@@ -138,49 +141,74 @@ class _InfoScreenState extends State<InfoScreen> {
     print('Handling card tap for index: $index');
     switch (index) {
       case 0: // Reception
-        _launchPhoneCall('+15551234567');
+        _launchPhoneCall('9');
         break;
       case 1: // IP Address
         _showAccessDialog(
           'Enter Access Code',
-          'Enter code 9999 to view IP address',
-          '9999',
+          'Enter The Code to view IP address',
+          '1346790',
           (success) => setState(() => _showIpAddress = success),
         );
         break;
       case 2: // MAC Address
         _showAccessDialog(
           'Enter Access Code',
-          'Enter code 8888 to view MAC address',
-          '8888',
+          'Enter The Code to view MAC address',
+          '1346790',
           (success) => setState(() => _showMacAddress = success),
         );
         break;
       case 3: // WiFi Network
-        _showAccessDialog(
-          'Enter Access Code',
-          'Enter code 7777 to view WiFi password',
-          '7777',
-          (success) => setState(() => _showWifiPassword = success),
-        );
+        _launchPhoneCall('9');
         break;
       case 4: // Room Service
-        _launchPhoneCall('+15551234568');
+        _launchPhoneCall('9');
         break;
     }
   }
 
   Future<void> _loadNetworkInfo() async {
     try {
-      final wifiIP = await _networkInfo.getWifiIP();
+      // Try to get Ethernet IP first, then fall back to WiFi if needed
+      String? ethernetIp;
+      bool isEthernet = false;
+
+      // Get all network interfaces - including Ethernet
+      const platform = MethodChannel('com.hotel_stream/network');
+      try {
+        // Try to get the Ethernet IP using platform-specific code
+        final result = await platform.invokeMethod('getEthernetIp');
+        ethernetIp = result?.toString();
+        if (ethernetIp != null && ethernetIp.isNotEmpty) {
+          isEthernet = true;
+        }
+        print('Ethernet IP from platform channel: $ethernetIp');
+      } catch (e) {
+        print('Error getting Ethernet IP: $e - will fall back to WiFi');
+      }
+
+      // Fall back to WiFi if Ethernet IP is not available
+      if (ethernetIp == null || ethernetIp.isEmpty) {
+        print('No Ethernet IP found, falling back to WiFi IP');
+        ethernetIp = await _networkInfo.getWifiIP();
+      }
+
       final wifiBSSID = await _networkInfo.getWifiBSSID();
+
       setState(() {
-        _ipAddress = wifiIP ?? 'Not Available';
+        _ipAddress = ethernetIp ?? 'Not Available';
         _macAddress = wifiBSSID ?? 'Not Available';
         _wifiPassword = 'HotelStream2024'; // Default password
+        _isEthernet = isEthernet;
       });
     } catch (e) {
       print('Error loading network info: $e');
+      setState(() {
+        _ipAddress = 'Error: $e';
+        _macAddress = 'Not Available';
+        _isEthernet = false;
+      });
     }
   }
 
@@ -276,7 +304,7 @@ class _InfoScreenState extends State<InfoScreen> {
                   ),
                   textAlign: TextAlign.center,
                   keyboardType: TextInputType.number,
-                  maxLength: 4,
+                  maxLength: 7,
                   decoration: const InputDecoration(
                     counterText: '',
                     border: OutlineInputBorder(
@@ -473,13 +501,40 @@ class _InfoScreenState extends State<InfoScreen> {
                           ),
                           const SizedBox(width: 8),
                           const Text(
-                            'One Resort',
+                            'One Resort Premium',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
                           ),
+                          const Spacer(),
+                          // Network status LED
+                          Builder(
+                            builder: (context) {
+                              final isOnline =
+                                  Provider.of<ConnectivityProvider>(context)
+                                      .isOnline;
+                              return Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isOnline ? Colors.green : Colors.red,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: isOnline
+                                          ? Colors.green.withOpacity(0.6)
+                                          : Colors.red.withOpacity(0.6),
+                                      blurRadius: 6,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 16),
                         ],
                       ),
                     ),
@@ -547,7 +602,7 @@ class _InfoScreenState extends State<InfoScreen> {
                             const SizedBox(height: 4),
                             // Hotel Name
                             const Text(
-                              'One Resort',
+                              'One Resort Premium',
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
@@ -557,7 +612,7 @@ class _InfoScreenState extends State<InfoScreen> {
                             const SizedBox(height: 4),
                             // Description
                             const Text(
-                              'Welcome to One Resort, your premier destination for luxury and comfort.',
+                              'Welcome to One Resort Premium, your premier destination for luxury and comfort.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 12,
@@ -578,7 +633,7 @@ class _InfoScreenState extends State<InfoScreen> {
                           Expanded(
                             child: _buildInfoCard(
                               'Reception',
-                              '+1 (555) 123-4567',
+                              '9',
                               Icons.phone,
                               isSelected: _selectedIndex == 0,
                               onTap: () => _handleCardTap(0),
@@ -587,11 +642,11 @@ class _InfoScreenState extends State<InfoScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: _buildInfoCard(
-                              'IP Address',
+                              _isEthernet ? 'Ethernet IP' : 'WiFi IP',
                               _showIpAddress
                                   ? _ipAddress ?? 'Not Available'
                                   : '*****',
-                              Icons.wifi,
+                              _isEthernet ? Icons.lan : Icons.wifi,
                               isSelected: _selectedIndex == 1,
                               onTap: () => _handleCardTap(1),
                             ),
@@ -611,10 +666,8 @@ class _InfoScreenState extends State<InfoScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: _buildInfoCard(
-                              'WiFi Network',
-                              _showWifiPassword
-                                  ? _wifiPassword ?? 'Not Available'
-                                  : '*****',
+                              'WiFi Password',
+                              'premium2024',
                               Icons.wifi_tethering,
                               isSelected: _selectedIndex == 3,
                               onTap: () => _handleCardTap(3),

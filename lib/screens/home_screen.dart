@@ -40,6 +40,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   late Timer _timer;
   late String _currentDateTime;
+  bool _isKioskModeEnabled = false;
+
+  // Platform channel for key events and kiosk mode control
+  static const MethodChannel _kioskChannel =
+      MethodChannel('com.hotelstream/kiosk');
 
   final List<String> _welcomeMessages = [
     'Welcome to our Hotel', // English
@@ -107,16 +112,20 @@ class _HomeScreenState extends State<HomeScreen> {
       _isNavbarFocused = true;
       _selectedIndex = 0;
     });
+
+    // Enable kiosk mode
+    _startKioskMode();
   }
 
   void _updateDateTime() {
-    final now = DateTime.now();
-    final dateFormat = DateFormat('EEEE, MMMM d, y');
-    final timeFormat = DateFormat('HH:mm:ss');
-    setState(() {
-      _currentDateTime = '${dateFormat.format(now)} ${timeFormat.format(now)}';
-    });
-  }
+  final now = DateTime.now().subtract(Duration(hours: 1)); // Subtract 1 hour
+  final dateFormat = DateFormat('EEEE, MMMM d, y');
+  final timeFormat = DateFormat('HH:mm:ss');
+  setState(() {
+    _currentDateTime = '${dateFormat.format(now)} ${timeFormat.format(now)}';
+  });
+}
+
 
   void _startWelcomeAnimation() {
     _welcomeTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
@@ -411,12 +420,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   KeyEventResult _handleKeyEvent(FocusNode node, RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
-      print('Home screen key event: ${event.logicalKey}');
-      print('Navbar focused: $_isNavbarFocused');
-      print('Selected index: $_selectedIndex');
+      print('HOME SCREEN KEY EVENT HANDLER:');
+      print('Key ID: ${event.logicalKey.keyId}');
+      print('Key Label: ${event.logicalKey.keyLabel}');
+      print(
+          'Navigation status: Navbar focused: $_isNavbarFocused, Selected index: $_selectedIndex');
 
+      // Ensure we always process navigation keys
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-        if (!_isNavbarFocused) {
+         if (!_isNavbarFocused) {
           setState(() {
             _isNavbarFocused = true;
             _selectedIndex = 0;
@@ -424,7 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return KeyEventResult.handled;
         }
       } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-        if (_isNavbarFocused) {
+       if (_isNavbarFocused) {
           setState(() {
             _isNavbarFocused = false;
             _selectedIndex = -1;
@@ -433,6 +445,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
         if (_isNavbarFocused && _selectedIndex > 0) {
+          print('LEFT ARROW pressed - moving selection left');
           setState(() {
             _selectedIndex = (_selectedIndex - 1).clamp(0, 3);
           });
@@ -440,6 +453,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
         if (_isNavbarFocused && _selectedIndex < 3) {
+          print('RIGHT ARROW pressed - moving selection right');
           setState(() {
             _selectedIndex = (_selectedIndex + 1).clamp(0, 3);
           });
@@ -447,11 +461,13 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       } else if (event.logicalKey == LogicalKeyboardKey.select ||
           event.logicalKey == LogicalKeyboardKey.enter) {
+        print(
+            'SELECT/ENTER pressed - activating selected item: $_selectedIndex');
         if (_isNavbarFocused && _selectedIndex >= 0) {
           _handleNavItemTap(_selectedIndex);
           return KeyEventResult.handled;
         }
-      } else if (event.logicalKey == LogicalKeyboardKey.goBack) {
+        } else if (event.logicalKey == LogicalKeyboardKey.goBack) {
         if (_isNavbarFocused) {
           setState(() {
             _isNavbarFocused = false;
@@ -461,6 +477,9 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     }
+
+    
+
     return KeyEventResult.ignored;
   }
 
@@ -573,6 +592,44 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // Start kiosk mode with system UI flags and native implementation
+  Future<void> _startKioskMode() async {
+    try {
+      // Set system UI mode to immersive sticky (kiosk mode)
+      SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.immersiveSticky,
+        overlays: [],
+      );
+
+      // Set preferred orientations to landscape
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+
+      // Use our native implementation
+      await _enableKioskMode();
+
+      // No longer adding the global key handler here - we'll use RawKeyboardListener
+      // which was added to the build method instead
+
+      setState(() {
+        _isKioskModeEnabled = true;
+      });
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  // Enable kiosk mode via platform channel
+  Future<void> _enableKioskMode() async {
+    try {
+      await _kioskChannel.invokeMethod('enableKioskMode');
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = gen.AppLocalizations.of(context)!;
@@ -583,7 +640,6 @@ class _HomeScreenState extends State<HomeScreen> {
       autofocus: true,
       onKey: _handleKeyEvent,
       child: Scaffold(
-        backgroundColor: Colors.black,
         body: Stack(
           children: [
             // Video Background or Gradient Background
@@ -730,10 +786,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ],
                                     ).createShader(bounds),
                                     child: const Text(
-                                      'ONE RESORT',
+                                      'ONE RESORT PREMIUM',
                                       style: TextStyle(
                                         color: Colors.white,
-                                        fontSize: 24,
+                                        fontSize: 20,
                                         fontWeight: FontWeight.bold,
                                         letterSpacing: 2,
                                       ),

@@ -9,14 +9,14 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
 class ChannelService {
-  static const String baseUrl = 'http://196.203.12.163:2509/channels.json';
+  static const String baseUrl = 'http://192.168.40.3/rmd.php';
   static const String _cacheFileName = 'channel_cache.json';
   static const Duration _cacheValidDuration = Duration(hours: 24);
 
   Future<ChannelResponse> getChannelsAndCategories() async {
     try {
       final isConnected = await ConnectivityUtil.isConnected();
-      
+
       // Try to get cached data first
       final cachedData = await _readFromCache();
 
@@ -42,9 +42,10 @@ class ChannelService {
       // If no valid cache or updates available, fetch from server
       print('Fetching from server');
       final response = await http.get(Uri.parse(baseUrl));
-      
+
       if (response.statusCode == 200) {
-        final channelResponse = ChannelResponse.fromJson(json.decode(response.body));
+        final channelResponse =
+            ChannelResponse.fromJson(json.decode(response.body));
         await _saveToCache(channelResponse);
         return channelResponse;
       }
@@ -86,7 +87,7 @@ class ChannelService {
     try {
       final cacheDir = await _getCacheDirectory();
       final cacheFile = File('${cacheDir.path}/$_cacheFileName');
-      
+
       final cache = ChannelCache(
         data: data,
         version: DateTime.now().millisecondsSinceEpoch.toString(),

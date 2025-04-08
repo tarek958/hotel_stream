@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/publicity_video_model.dart';
 
 class PublicityService {
-  static const String API_URL = 'http://196.203.12.163:2509/pu.json';
+  static const String API_URL = 'http://192.168.40.3/publicity.json';
   static const String CACHE_KEY = 'publicity_videos';
   static const Duration CACHE_DURATION =
       Duration(minutes: 15); // Reduced to ensure fresh data

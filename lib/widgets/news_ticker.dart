@@ -34,7 +34,7 @@ class _NewsTickerState extends State<NewsTicker> {
   Future<void> _fetchNews() async {
     try {
       final response =
-          await http.get(Uri.parse('http://196.203.12.163:2509/news.json'));
+          await http.get(Uri.parse('http://192.168.40.3/news.json'));
       if (response.statusCode == 200) {
         final List<dynamic> newsData = json.decode(response.body);
         if (newsData.isNotEmpty) {
