@@ -118,18 +118,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _updateDateTime() {
-  final now = DateTime.now().subtract(Duration(hours: 1)); // Subtract 1 hour
-  final dateFormat = DateFormat('EEEE, MMMM d, y');
-  final timeFormat = DateFormat('HH:mm:ss');
-  setState(() {
-    _currentDateTime = '${dateFormat.format(now)} ${timeFormat.format(now)}';
-  });
-}
+    if (!mounted || _isDisposed) return;
 
+    final now = DateTime.now().subtract(Duration(hours: 1)); // Subtract 1 hour
+    final dateFormat = DateFormat('EEEE, MMMM d, y');
+    final timeFormat = DateFormat('HH:mm:ss');
+
+    if (mounted && !_isDisposed) {
+      setState(() {
+        _currentDateTime =
+            '${dateFormat.format(now)} ${timeFormat.format(now)}';
+      });
+    }
+  }
 
   void _startWelcomeAnimation() {
     _welcomeTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         setState(() {
           _welcomeIndex = (_welcomeIndex + 1) % _welcomeMessages.length;
         });
@@ -250,20 +255,23 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       print('Creating video controller for URL: $videoUrl');
 
+      // Clean up any existing controllers first
+      _cleanupControllers();
+
       // For MP4 files, don't use streaming options
       final isMP4 = videoUrl.toLowerCase().endsWith('.mp4');
+      print('isMP4: $isMP4');
 
+      // Create the video controller with the right options
       _videoController = VideoPlayerController.network(
         videoUrl,
         httpHeaders: const {
           'User-Agent': 'HotelStream/1.0',
         },
-        videoPlayerOptions: isMP4
-            ? null
-            : VideoPlayerOptions(
-                mixWithOthers: true,
-                allowBackgroundPlayback: true,
-              ),
+        videoPlayerOptions: VideoPlayerOptions(
+          mixWithOthers: false, // Don't mix with other audio sources
+          allowBackgroundPlayback: false, // Prevent background playback
+        ),
       );
 
       // Add error listener with mounted check
@@ -282,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
       bool initCompleted = false;
       Timer? timeoutTimer;
 
-      timeoutTimer = Timer(const Duration(seconds: 10), () {
+      timeoutTimer = Timer(const Duration(seconds: 15), () {
         if (!initCompleted && mounted && !_isDisposed) {
           print('Video initialization timeout');
           _videoController?.dispose();
@@ -291,9 +299,22 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
 
-      await _videoController!.initialize();
-      initCompleted = true;
-      timeoutTimer?.cancel();
+      // Initialize with a proper error handler
+      try {
+        await _videoController!.initialize();
+        initCompleted = true;
+        timeoutTimer?.cancel();
+      } catch (e) {
+        print('Error during video initialization: $e');
+        if (timeoutTimer != null && timeoutTimer.isActive) {
+          timeoutTimer.cancel();
+        }
+
+        if (mounted && !_isDisposed) {
+          _retryVideoInitialization();
+        }
+        return;
+      }
 
       // Check mounted state again after async operation
       if (_isDisposed || !mounted) {
@@ -301,27 +322,43 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
+      // Set video properties
       await _videoController!.setLooping(true);
+      await _videoController!.setVolume(1.0);
 
       print(
-          'Video initialized with duration: ${_videoController!.value.duration}');
+          'Video initialized with duration: ${_videoController!.value.duration}, size: ${_videoController!.value.size}');
 
       if (_isDisposed || !mounted) {
         _videoController?.dispose();
         return;
       }
 
+      // Ensure we're getting the right video dimensions
+      double videoWidth = _videoController!.value.size.width;
+      double videoHeight = _videoController!.value.size.height;
+
+      // Default to 16:9 if dimensions are invalid
+      if (videoWidth <= 0 || videoHeight <= 0) {
+        videoWidth = 16;
+        videoHeight = 9;
+      }
+
+      final aspectRatio = videoWidth / videoHeight;
+      print('Using aspect ratio: $aspectRatio');
+
       setState(() {
         _chewieController = ChewieController(
           videoPlayerController: _videoController!,
           autoPlay: true,
           looping: true,
-          aspectRatio: 16 / 9,
+          aspectRatio: MediaQuery.of(context).size.aspectRatio,
           showControls: false,
           showOptions: false,
           allowFullScreen: false,
           allowMuting: false,
           allowPlaybackSpeedChanging: false,
+          zoomAndPan: true,
           errorBuilder: (context, errorMessage) {
             return Center(
               child: Column(
@@ -426,9 +463,17 @@ class _HomeScreenState extends State<HomeScreen> {
       print(
           'Navigation status: Navbar focused: $_isNavbarFocused, Selected index: $_selectedIndex');
 
+      // Block back key press completely in home screen
+      if (event.logicalKey == LogicalKeyboardKey.goBack ||
+          event.logicalKey == LogicalKeyboardKey.browserBack ||
+          event.logicalKey == LogicalKeyboardKey.escape) {
+        // Always block back button in home screen
+        return KeyEventResult.handled;
+      }
+
       // Ensure we always process navigation keys
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-         if (!_isNavbarFocused) {
+        if (!_isNavbarFocused) {
           setState(() {
             _isNavbarFocused = true;
             _selectedIndex = 0;
@@ -436,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return KeyEventResult.handled;
         }
       } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-       if (_isNavbarFocused) {
+        if (_isNavbarFocused) {
           setState(() {
             _isNavbarFocused = false;
             _selectedIndex = -1;
@@ -467,18 +512,8 @@ class _HomeScreenState extends State<HomeScreen> {
           _handleNavItemTap(_selectedIndex);
           return KeyEventResult.handled;
         }
-        } else if (event.logicalKey == LogicalKeyboardKey.goBack) {
-        if (_isNavbarFocused) {
-          setState(() {
-            _isNavbarFocused = false;
-            _selectedIndex = -1;
-          });
-          return KeyEventResult.handled;
-        }
       }
     }
-
-    
 
     return KeyEventResult.ignored;
   }
@@ -498,19 +533,23 @@ class _HomeScreenState extends State<HomeScreen> {
   void _handleNavItemTap(int index) {
     if (!mounted) return;
 
+    // Cancel all timers to prevent setState on defunct widgets
+    _timer.cancel();
+    _welcomeTimer?.cancel();
+
     switch (index) {
       case 0: // Channels
         // Stop video and clean up controllers before navigation
         _cleanupControllers();
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const ChannelsScreen()),
-        ).then((_) => _reinitializeVideoOnReturn());
+        );
         break;
       case 1: // Info
         // Stop video and clean up controllers before navigation
         _cleanupControllers();
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const InfoScreen()),
         ).then((_) => _reinitializeVideoOnReturn());
@@ -518,7 +557,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 2: // Weather
         // Stop video and clean up controllers before navigation
         _cleanupControllers();
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const WeatherScreen()),
         ).then((_) => _reinitializeVideoOnReturn());
@@ -584,10 +623,26 @@ class _HomeScreenState extends State<HomeScreen> {
   void _retryVideoInitialization() {
     if (_isDisposed || !mounted) return;
 
-    // Wait for 2 seconds before retrying
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!_isDisposed && mounted) {
+    print('Retrying video initialization...');
+
+    // Clean up existing controllers
+    _cleanupControllers();
+
+    // Short delay before retry
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (_isDisposed || !mounted) return;
+
+      try {
+        final publicityProvider =
+            Provider.of<PublicityProvider>(context, listen: false);
+
+        // Try to get a different video if possible
+        publicityProvider.nextVideo();
+
+        // And then initialize video
         _initializeVideo();
+      } catch (e) {
+        print('Error during retry: $e');
       }
     });
   }
@@ -652,10 +707,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       // Video player
                       Positioned.fill(
-                        child: AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: Chewie(
-                            controller: _chewieController!,
+                        child: Container(
+                          color: Colors.black,
+                          width: double.infinity,
+                          height: double.infinity,
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            child: SizedBox(
+                              width: _videoController!.value.size.width,
+                              height: _videoController!.value.size.height,
+                              child: Chewie(
+                                controller: _chewieController!,
+                              ),
+                            ),
                           ),
                         ),
                       ),

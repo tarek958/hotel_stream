@@ -26,6 +26,7 @@ dependencies:
   url_launcher: ^6.2.4
   flutter_lock_task: ^0.0.2
  
+ 
 
 dev_dependencies:
   flutter_test:
@@ -39,4 +40,5 @@ flutter:
   assets:
     - assets/images/ic_new-playstore.png
     - assets/images/
+    - assets/json/
     - assets/videos/intro.mp4

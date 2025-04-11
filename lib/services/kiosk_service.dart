@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_lock_task/flutter_lock_task.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// A service that handles kiosk mode across the entire app
 class KioskService {
@@ -222,5 +223,15 @@ class KioskService {
   void dispose() {
     ServicesBinding.instance.keyboard.removeHandler(_interceptKeys);
     _kioskModeController.close();
+  }
+
+  Future<bool> isLocalStorageAvailable() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      return directory.existsSync();
+    } catch (e) {
+      print('Error checking local storage: $e');
+      return false;
+    }
   }
 }
