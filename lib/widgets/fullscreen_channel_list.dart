@@ -93,28 +93,6 @@ class _FullscreenChannelListState extends State<FullscreenChannelList> {
 
     if (!widget.isVisible) return const SizedBox.shrink();
 
-    // Center the currently playing channel when the list is first displayed
-    if (widget.currentChannel != null && widget.scrollController.hasClients) {
-      final currentIndex = widget.channels
-          .indexWhere((channel) => channel.id == widget.currentChannel!.id);
-      if (currentIndex != -1) {
-        final itemHeight = 80.0;
-        final viewportHeight =
-            widget.scrollController.position.viewportDimension;
-        final targetOffset = (currentIndex * itemHeight) -
-            (viewportHeight / 2) +
-            (itemHeight / 2);
-        final clampedOffset = targetOffset.clamp(
-            0.0, widget.scrollController.position.maxScrollExtent);
-
-        widget.scrollController.animateTo(
-          clampedOffset,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-        );
-      }
-    }
-
     return Container(
       color: Colors.black.withOpacity(0.85),
       child: Column(
@@ -147,23 +125,6 @@ class _FullscreenChannelListState extends State<FullscreenChannelList> {
                 print(
                     'Building channel item: ${channel.name}, isSelected: $isSelected, isPlaying: $isPlaying');
 
-                if (isSelected && widget.scrollController.hasClients) {
-                  final itemHeight = 80.0;
-                  final viewportHeight =
-                      widget.scrollController.position.viewportDimension;
-                  final targetOffset = (index * itemHeight) -
-                      (viewportHeight / 2) +
-                      (itemHeight / 2);
-                  final clampedOffset = targetOffset.clamp(
-                      0.0, widget.scrollController.position.maxScrollExtent);
-
-                  widget.scrollController.animateTo(
-                    clampedOffset,
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                  );
-                }
-
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   decoration: BoxDecoration(
@@ -185,39 +146,58 @@ class _FullscreenChannelListState extends State<FullscreenChannelList> {
                       width: isSelected ? 2 : 1,
                     ),
                   ),
-                  child: ListTile(
-                    dense: false,
-                    leading: Image.network(
-                      channel.logo,
-                      width: 40,
-                      height: 40,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(Icons.tv, color: AppColors.primary),
-                        );
-                      },
-                    ),
-                    title: Text(
-                      channel.name,
-                      style: TextStyle(
-                        color: isPlaying ? AppColors.primary : Colors.white,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                    trailing: isPlaying
-                        ? const Icon(Icons.play_arrow, color: AppColors.accent)
-                        : null,
+                  height: 72.0, // Ensure consistent height
+                  child: GestureDetector(
                     onTap: () {
                       print('Channel tapped: ${channel.name}');
                       widget.onChannelSelected(channel);
                     },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Leading logo
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Image.network(
+                            channel.logo,
+                            width: 40,
+                            height: 40,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(Icons.tv, color: AppColors.primary),
+                              );
+                            },
+                          ),
+                        ),
+                        // Title text
+                        Expanded(
+                          child: Text(
+                            channel.name,
+                            style: TextStyle(
+                              color:
+                                  isPlaying ? AppColors.primary : Colors.white,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                        // Trailing play icon
+                        if (isPlaying)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 16.0),
+                            child:
+                                Icon(Icons.play_arrow, color: AppColors.accent),
+                          ),
+                      ],
+                    ),
                   ),
                 );
               },

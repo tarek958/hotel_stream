@@ -25,6 +25,7 @@ dependencies:
   network_info_plus: ^4.1.0
   url_launcher: ^6.2.4
   flutter_lock_task: ^0.0.2
+  better_player: ^0.0.84
  
  
 

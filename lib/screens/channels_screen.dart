@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +19,9 @@ import '../models/channel_response.dart'; // Use the correct import for Bouquet
 import '../services/tv_focus_service.dart';
 import '../providers/language_provider.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart' as gen;
+
+// For VideoFormat
+enum VideoFormat { dash, hls, ss, other }
 
 class ChannelsScreen extends StatefulWidget {
   const ChannelsScreen({super.key});
@@ -56,6 +60,66 @@ class _ChannelsScreenState extends State<ChannelsScreen>
   DateTime? _lastBackPressTime;
   DateTime? _lastChannelListHideTime; // Track when channel list was last hidden
   bool _isHeaderVisible = true;
+
+  // Add overlay state variables
+  OverlayEntry? _channelNameOverlay;
+  Timer? _overlayTimer;
+
+  // Buffering management
+  bool _isBuffering = false;
+  DateTime? _bufferingStartTime;
+  Timer? _bufferingTimer;
+
+  void _showChannelNameOverlay(Channel channel) {
+    _hideChannelNameOverlay();
+
+    _channelNameOverlay = OverlayEntry(
+      builder: (context) => Positioned(
+        top: 20,
+        left: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.primary.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  channel.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(_channelNameOverlay!);
+
+    _overlayTimer?.cancel();
+    _overlayTimer = Timer(const Duration(seconds: 2), _hideChannelNameOverlay);
+  }
+
+  void _hideChannelNameOverlay() {
+    _channelNameOverlay?.remove();
+    _channelNameOverlay = null;
+    _overlayTimer?.cancel();
+    _overlayTimer = null;
+  }
 
   @override
   void initState() {
@@ -354,6 +418,10 @@ class _ChannelsScreenState extends State<ChannelsScreen>
     }
     _slideController.dispose();
     _channelListScrollController.dispose();
+    
+    // Clean up buffering timer
+    _bufferingTimer?.cancel();
+    
     _cleanupControllers();
     _isDisposed = true;
     super.dispose();
@@ -402,11 +470,16 @@ class _ChannelsScreenState extends State<ChannelsScreen>
         if (_showChannelList) {
           _hideChannelList();
         } else {
-          setState(() {
-            _showChannelList = true;
-            _slideController.value = 1.0;
+          // Utiliser jumpTo au lieu de animateTo pour un centrage immédiat
+          Future.delayed(Duration(milliseconds: 100), () {
+            if (mounted &&
+                _channelListScrollController.hasClients &&
+                _selectedChannelIndex >= 0) {
+              _directCenterChannel();
+            }
           });
         }
+        return;
       } else {
         // If not in fullscreen mode, enter fullscreen mode
         print(
@@ -423,6 +496,15 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                 _filteredChannels.indexWhere((c) => c.id == channel.id);
             if (currentIndex >= 0) {
               _selectedChannelIndex = currentIndex;
+            }
+          });
+
+          // Utiliser jumpTo au lieu de animateTo pour un centrage immédiat
+          Future.delayed(Duration(milliseconds: 100), () {
+            if (mounted &&
+                _channelListScrollController.hasClients &&
+                _selectedChannelIndex >= 0) {
+              _directCenterChannel();
             }
           });
         }
@@ -468,8 +550,10 @@ class _ChannelsScreenState extends State<ChannelsScreen>
     try {
       _videoController = VideoPlayerController.network(
         _selectedChannel!.streamUrl,
-        httpHeaders: const {
+        httpHeaders: {
           'User-Agent': 'HotelStream/1.0',
+          // Set headers that help with caching
+          'Connection': 'keep-alive',
         },
         videoPlayerOptions: VideoPlayerOptions(
           mixWithOthers: true,
@@ -477,15 +561,25 @@ class _ChannelsScreenState extends State<ChannelsScreen>
         ),
       );
 
+      // Initialize video player
       await _videoController!.initialize();
 
-      // Set preferred quality - forcing highest quality available
+      // Set up buffering monitoring
+      _videoController!.addListener(_onVideoControllerUpdate);
+
+      // Pre-buffer by seeking to beginning and waiting
+      await _videoController!.seekTo(Duration.zero);
+
+      // Short delay to allow initial buffering
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Set preferred volume and speed
       await _videoController!.setVolume(1.0);
       await _videoController!.setPlaybackSpeed(1.0);
 
-      // Make sure video is properly sized for high resolution
-      final videoWidth = max(1280, _videoController!.value.size.width);
-      final videoHeight = max(720, _videoController!.value.size.height);
+      // Use the video's native resolution
+      final videoWidth = _videoController!.value.size.width;
+      final videoHeight = _videoController!.value.size.height;
       final aspectRatio = videoWidth / videoHeight;
 
       if (!mounted) return;
@@ -534,6 +628,51 @@ class _ChannelsScreenState extends State<ChannelsScreen>
       }
       rethrow;
     }
+  }
+
+  void _onVideoControllerUpdate() {
+    if (_videoController == null || _isDisposed) return;
+
+    // Detect buffering state changes
+    final bool isCurrentlyBuffering = _videoController!.value.isBuffering;
+
+    if (isCurrentlyBuffering != _isBuffering) {
+      setState(() => _isBuffering = isCurrentlyBuffering);
+
+      if (isCurrentlyBuffering) {
+        // Start buffering
+        _bufferingStartTime = DateTime.now();
+
+        // Start timer to check for long buffering
+        _bufferingTimer?.cancel();
+        _bufferingTimer = Timer(const Duration(seconds: 3), () {
+          if (_isBuffering && mounted) {
+            // If still buffering after 3 seconds, try to recover
+            _tryRecoverFromLongBuffering();
+          }
+        });
+      } else {
+        // Buffering ended
+        _bufferingStartTime = null;
+        _bufferingTimer?.cancel();
+      }
+    }
+  }
+
+  void _tryRecoverFromLongBuffering() {
+    if (_videoController == null || !_isBuffering || !mounted) return;
+
+    print('Long buffering detected, trying to recover playback');
+
+    // Try seeking slightly forward to bypass buffering issue
+    final Duration currentPosition = _videoController!.value.position;
+    final Duration seekTarget =
+        currentPosition + const Duration(milliseconds: 500);
+
+    _videoController!.seekTo(seekTarget).then((_) {
+      // Force play after seeking
+      _videoController!.play();
+    });
   }
 
   Future<bool> _checkConnectivity() async {
@@ -658,8 +797,7 @@ class _ChannelsScreenState extends State<ChannelsScreen>
               'DEBUG [_handleFullscreenKeyPress] In fullscreen mode, handling back key');
 
           if (_showChannelList) {
-            print(
-                'DEBUG [_handleFullscreenKeyPress] Channel list is showing, hiding it');
+            print('DEBUG [_handleFullscreenKeyPress] Hiding channel list');
             _hideChannelList();
           } else {
             // Only exit fullscreen mode when channel list is not showing
@@ -688,43 +826,41 @@ class _ChannelsScreenState extends State<ChannelsScreen>
             'DEBUG [_handleFullscreenKeyPress] Not in fullscreen, ignoring key');
         return KeyEventResult.ignored;
       } else if (event.logicalKey == LogicalKeyboardKey.space) {
-        // Add a space key handler to toggle channel list
         if (_isFullScreen) {
-          setState(() {
-            _showChannelList = !_showChannelList;
-            _slideController.value = _showChannelList ? 1.0 : 0.0;
-
-            if (_showChannelList) {
-              // Center the selected channel when showing the list
-              Future.delayed(Duration(milliseconds: 100), () {
-                if (mounted) {
-                  _directCenterChannel();
-                }
-              });
-            }
-          });
+          print('DEBUG [_handleFullscreenKeyPress] Toggling channel list');
+          _toggleChannelList();
           return KeyEventResult.handled;
         }
-      } else if (event.logicalKey == LogicalKeyboardKey.info) {
-        // Add an info key handler to toggle channel list
-        if (_isFullScreen) {
-          setState(() {
-            _showChannelList = !_showChannelList;
-            _slideController.value = _showChannelList ? 1.0 : 0.0;
-
-            if (_showChannelList) {
-              // Center the selected channel when showing the list
-              Future.delayed(Duration(milliseconds: 100), () {
-                if (mounted) {
-                  _directCenterChannel();
-                }
-              });
-            }
-          });
-          return KeyEventResult.handled;
+      } else if (!_showChannelList) {
+        // Handle up/down navigation when channel list is not visible
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          if (_selectedChannelIndex > 0) {
+            setState(() {
+              _selectedChannelIndex--;
+            });
+            final nextChannel = _filteredChannels[_selectedChannelIndex];
+            // Show the channel name overlay
+            _showChannelNameOverlay(nextChannel);
+            // Select the channel immediately
+            _onChannelSelected(nextChannel);
+            return KeyEventResult.handled;
+          }
+        } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          if (_selectedChannelIndex < _filteredChannels.length - 1) {
+            setState(() {
+              _selectedChannelIndex++;
+            });
+            final nextChannel = _filteredChannels[_selectedChannelIndex];
+            // Show the channel name overlay
+            _showChannelNameOverlay(nextChannel);
+            // Select the channel immediately
+            _onChannelSelected(nextChannel);
+            return KeyEventResult.handled;
+          }
         }
       }
     }
+
     return KeyEventResult.ignored;
   }
 
@@ -753,7 +889,7 @@ class _ChannelsScreenState extends State<ChannelsScreen>
       final maxScroll = _channelListScrollController.position.maxScrollExtent;
       final clampedOffset = targetOffset.clamp(0.0, maxScroll);
 
-      // Utiliser jumpTo pour un centrage immédiat sans animation
+      // Utiliser jumpTo au lieu de animateTo pour un centrage immédiat
       _channelListScrollController.jumpTo(clampedOffset);
 
       print(
@@ -840,9 +976,19 @@ class _ChannelsScreenState extends State<ChannelsScreen>
             return false; // Prevent default back behavior
           } else {
             // Only exit fullscreen mode when channel list is not showing
-            print(
-                'DEBUG [WillPopScope] Channel list is NOT showing, exiting fullscreen mode');
-            _toggleFullScreen(value: false);
+            // and we didn't just hide the channel list
+            final now = DateTime.now();
+            final recentlyHidChannelList = _lastChannelListHideTime != null &&
+                now.difference(_lastChannelListHideTime!).inMilliseconds < 500;
+
+            if (recentlyHidChannelList) {
+              print(
+                  'DEBUG [WillPopScope] Recently hid channel list, ignoring back button');
+            } else {
+              print(
+                  'DEBUG [WillPopScope] Channel list is NOT showing, exiting fullscreen mode');
+              _toggleFullScreen(value: false);
+            }
             return false; // Prevent default back behavior
           }
         } else {
@@ -915,12 +1061,11 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                       if (recentlyHidChannelList) {
                         print(
                             'DEBUG [RootFocus] Recently hid channel list, ignoring back button');
-                        return KeyEventResult.handled;
+                      } else {
+                        print(
+                            'DEBUG [RootFocus] Channel list is NOT showing, exiting fullscreen mode');
+                        _toggleFullScreen(value: false);
                       }
-
-                      print(
-                          'DEBUG [RootFocus] Channel list is NOT showing, exiting fullscreen mode');
-                      _toggleFullScreen(value: false);
                       print('DEBUG [RootFocus] Marking back key as HANDLED');
                       return KeyEventResult.handled;
                     }
@@ -1027,7 +1172,7 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                     setState(() {
                       _isNavbarFocused = false;
 
-                      // Unfocus all category nodes first
+                      // Unfocus all category nodes
                       for (var node in _categoryFocusNodes) {
                         if (node.hasFocus) node.unfocus();
                       }
@@ -1339,8 +1484,8 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                                 children: [
                                   // Channels section
                                   Container(
-                                    width: MediaQuery.of(context).size.width *
-                                        0.4, // Changed from 0.55 to 0.4 (40%)
+                                    width:
+                                        300, // Fixed width as per fullscreen list
                                     decoration: BoxDecoration(
                                       border: Border(
                                         right: BorderSide(
@@ -1400,19 +1545,18 @@ class _ChannelsScreenState extends State<ChannelsScreen>
 
     return Focus(
       focusNode: _channelsFocusNode,
-      autofocus:
-          !_isFullScreen, // Auto focus channel list when not in fullscreen mode
+      autofocus: !_isFullScreen,
       onKey: (node, event) {
         if (event is RawKeyDownEvent) {
           if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
             if (_selectedChannelIndex == 0) {
-              // Navigate to categories in the navbar when on first channel
               _navigateUpToCategories();
               return KeyEventResult.handled;
             } else {
               setState(() {
                 _selectedChannelIndex--;
               });
+              _directCenterChannel(); // Center immediately after selection
               return KeyEventResult.handled;
             }
           } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
@@ -1420,6 +1564,7 @@ class _ChannelsScreenState extends State<ChannelsScreen>
               _selectedChannelIndex = (_selectedChannelIndex + 1)
                   .clamp(0, _filteredChannels.length - 1);
             });
+            _directCenterChannel(); // Center immediately after selection
             return KeyEventResult.handled;
           } else if (event.logicalKey == LogicalKeyboardKey.select ||
               event.logicalKey == LogicalKeyboardKey.enter) {
@@ -1433,15 +1578,14 @@ class _ChannelsScreenState extends State<ChannelsScreen>
         return KeyEventResult.ignored;
       },
       child: Container(
+        width: 300,
         color: Colors.black.withOpacity(0.85),
         child: Stack(
           children: [
-            // Channel list with scroll listener
             NotificationListener<ScrollNotification>(
               onNotification: (ScrollNotification scrollInfo) {
                 if (scrollInfo is ScrollUpdateNotification) {
                   setState(() {
-                    // Hide header when scrolled past threshold (20 pixels)
                     _isHeaderVisible = scrollInfo.metrics.pixels <= 20;
                   });
                 }
@@ -1449,20 +1593,10 @@ class _ChannelsScreenState extends State<ChannelsScreen>
               },
               child: ListView.builder(
                 controller: _channelListScrollController,
-                padding: const EdgeInsets.only(
-                  top: 80, // Keep space for header
-                  bottom: 80,
-                  left: 16,
-                  right: 16,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 itemCount: _filteredChannels.length,
                 itemExtent:
-                    80.0, // Fixed height for each item for better scrolling
-                cacheExtent:
-                    800.0, // Cache more items to prevent rendering delays
-                physics:
-                    const AlwaysScrollableScrollPhysics(), // Ensure always scrollable
-                addAutomaticKeepAlives: true, // Keep items alive when scrolled
+                    82.0, // Match the height used in _directCenterChannel
                 itemBuilder: (context, index) {
                   final channel = _filteredChannels[index];
                   final isSelected = index == _selectedChannelIndex;
@@ -1470,151 +1604,94 @@ class _ChannelsScreenState extends State<ChannelsScreen>
                       _error == null &&
                       _chewieController != null;
 
-                  // Center the selected item - same logic as FullScreenChannelList
+                  // Center the selected item immediately when it becomes selected
                   if (isSelected && _channelListScrollController.hasClients) {
-                    final itemHeight =
-                        80.0; // Approximate height of each list item
-                    final viewportHeight =
-                        _channelListScrollController.position.viewportDimension;
-                    final targetOffset = (index * itemHeight) -
-                        (viewportHeight / 2) +
-                        (itemHeight / 2);
-
-                    // Ensure we don't scroll past the top or bottom
-                    double clampedOffset = 0.0;
-                    try {
-                      // Safely access maxScrollExtent with null checks
-                      if (_channelListScrollController.hasClients &&
-                          _channelListScrollController.position != null) {
-                        clampedOffset = targetOffset.clamp(
-                            0.0,
-                            _channelListScrollController
-                                .position.maxScrollExtent);
-                      } else {
-                        clampedOffset = targetOffset.clamp(0.0, 0.0);
-                      }
-                    } catch (e) {
-                      print('Error during scroll clamping: $e');
-                      clampedOffset = 0.0;
-                    }
-
-                    // Animate to the target position only if the controller has clients
-                    if (_channelListScrollController.hasClients) {
-                      _channelListScrollController.animateTo(
-                        clampedOffset,
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeInOut,
-                      );
-                    }
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _directCenterChannel();
+                    });
                   }
 
-                  return InkWell(
-                    onTap: () {
-                      // Set the selected index immediately
-                      setState(() {
-                        _selectedChannelIndex = index;
-                      });
-
-                      // Ensure the channel is properly focused before selection
-                      _channelsFocusNode.requestFocus();
-
-                      // Then select the channel (after a short delay to ensure focus is set)
-                      Future.delayed(Duration(milliseconds: 10), () {
-                        if (mounted) {
-                          _onChannelSelected(channel);
-                        }
-                      });
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        gradient: isPlaying
-                            ? LinearGradient(
-                                colors: [
-                                  AppColors.primary.withOpacity(0.3),
-                                  AppColors.accent.withOpacity(0.3)
-                                ],
-                              )
-                            : null,
-                        color: isPlaying
-                            ? null
-                            : AppColors.surface.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppColors.primary
-                              : AppColors.primary.withOpacity(0.1),
-                          width: isSelected ? 2 : 1,
-                        ),
+                  return Container(
+                    margin: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: isPlaying
+                          ? LinearGradient(
+                              colors: [
+                                AppColors.primary.withOpacity(0.3),
+                                AppColors.accent.withOpacity(0.3),
+                              ],
+                            )
+                          : null,
+                      color:
+                          isPlaying ? null : AppColors.surface.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.primary.withOpacity(0.1),
+                        width: isSelected ? 2 : 1,
                       ),
-                      child: ListTile(
-                        leading: Image.network(
-                          channel.logo,
-                          width: 40,
-                          height: 40,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
+                    ),
+                    child: ListTile(
+                      leading: channel.logo.isNotEmpty
+                          ? Image.network(
+                              channel.logo,
                               width: 40,
                               height: 40,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(Icons.tv, color: AppColors.primary),
-                            );
-                          },
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _buildChannelAvatar(channel),
+                            )
+                          : _buildChannelAvatar(channel),
+                      title: Text(
+                        channel.name,
+                        style: TextStyle(
+                          color: isPlaying ? AppColors.primary : Colors.white,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
-                        title: Text(
-                          channel.name,
-                          style: TextStyle(
-                            color: isPlaying ? AppColors.primary : Colors.white,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                        trailing: isPlaying
-                            ? const Icon(Icons.play_arrow,
-                                color: AppColors.accent)
-                            : null,
                       ),
+                      trailing: isPlaying
+                          ? const Icon(Icons.play_arrow,
+                              color: AppColors.accent)
+                          : null,
+                      onTap: () {
+                        setState(() {
+                          _selectedChannelIndex = index;
+                        });
+                        _directCenterChannel(); // Center immediately after tap
+                        _onChannelSelected(channel);
+                      },
                     ),
                   );
                 },
               ),
             ),
-
-            // Collapsible "Channels" header
-            AnimatedOpacity(
-              opacity: _isHeaderVisible ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 200),
-              child: Container(
-                height: 60,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black,
-                      Colors.black.withOpacity(0.9),
-                      Colors.black.withOpacity(0.7),
-                      Colors.black.withOpacity(0.0),
-                    ],
-                  ),
-                ),
-                padding: const EdgeInsets.only(left: 16, top: 12),
-                alignment: Alignment.topLeft,
-                child: Text(
-                  'Channels',
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChannelAvatar(Channel channel) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Text(
+          channel.name.substring(0, min(2, channel.name.length)).toUpperCase(),
+          style: TextStyle(
+            color: AppColors.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
       ),
     );
@@ -1834,28 +1911,27 @@ class _ChannelsScreenState extends State<ChannelsScreen>
     }
 
     try {
-      // Get the height of the ListView
-      final double listViewHeight =
-          _channelListScrollController.position.viewportDimension;
-      // Approximate height of each channel item
-      const double itemHeight = 100.0;
-      // Calculate the offset to center the item
-      final double offset = (_selectedChannelIndex * itemHeight) -
-          (listViewHeight / 2) +
-          (itemHeight / 2);
+      // Fixed height for each list item
+      const itemHeight = 82.0; // Total height including margins
 
-      // Safely access maxScrollExtent
-      double maxExtent;
-      try {
-        maxExtent = _channelListScrollController.position.maxScrollExtent;
-      } catch (e) {
-        print(
-            'DEBUG [_centerSelectedChannel] Error accessing maxScrollExtent: $e');
+      // Calculate the total height of the visible area
+      final viewportHeight =
+          _channelListScrollController.position.viewportDimension;
+      final halfViewportHeight = viewportHeight / 2;
+
+      // Calculate the target position
+      final itemPosition = _selectedChannelIndex * itemHeight;
+      final targetOffset = itemPosition - halfViewportHeight + (itemHeight / 2);
+
+      // Get the maximum scroll extent
+      final maxExtent = _channelListScrollController.position.maxScrollExtent;
+      if (maxExtent < 0) {
+        print('DEBUG [_centerSelectedChannel] Invalid maxExtent: $maxExtent');
         return; // Exit if we can't safely get the max extent
       }
 
       // Clamp the offset to valid range
-      final double clampedOffset = offset.clamp(0.0, maxExtent);
+      final double clampedOffset = targetOffset.clamp(0.0, maxExtent);
 
       // Scroll to the position
       _channelListScrollController.animateTo(
@@ -1953,13 +2029,43 @@ class _ChannelsScreenState extends State<ChannelsScreen>
             child: FittedBox(
               fit: BoxFit.fill,
               child: SizedBox(
-                width: _isFullScreen
-                    ? max(1920, _videoController!.value.size.width)
-                    : max(1280, _videoController!.value.size.width),
-                height: _isFullScreen
-                    ? max(1080, _videoController!.value.size.height)
-                    : max(720, _videoController!.value.size.height),
-                child: Chewie(controller: _chewieController!),
+                width: _videoController!.value.size.width,
+                height: _videoController!.value.size.height,
+                child: Stack(
+                  children: [
+                    // Video player
+                    Positioned.fill(
+                      child: Chewie(controller: _chewieController!),
+                    ),
+
+                    // Buffering indicator
+                    if (_isBuffering)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.black.withOpacity(0.5),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.primary),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Buffering...',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -2282,7 +2388,7 @@ class _ChannelsScreenState extends State<ChannelsScreen>
   }
 
   KeyEventResult _handleNavigationKeyPress(FocusNode node, RawKeyEvent event) {
-    if (event is RawKeyDownEvent) {
+    if (event is KeyDownEvent) {
       final hotelProvider = Provider.of<HotelProvider>(context, listen: false);
       final categories = ['All', ...hotelProvider.bouquets.map((b) => b.name)];
 
@@ -2628,9 +2734,10 @@ class _ChannelsScreenState extends State<ChannelsScreen>
       _isFullScreen = newValue;
       // Only show channel list when exiting fullscreen mode, not when entering
       if (!_isFullScreen) {
-        _showChannelList = true;
+        _showChannelList =
+            true; // Show channel list automatically when exiting fullscreen
 
-        // Reset channel selection state to ensure it can be reselected
+        // Reset channel selection state to ensure it can be reselected immediately
         if (_selectedChannel != null) {
           final currentIndex =
               _filteredChannels.indexWhere((c) => c.id == _selectedChannel!.id);
@@ -2744,8 +2851,6 @@ class _ChannelsScreenState extends State<ChannelsScreen>
     // Handle TV remote control key events
     if (event is KeyDownEvent) {
       print('Key down event: ${event.logicalKey}');
-
-      // Handle back button
       if (event.logicalKey == LogicalKeyboardKey.goBack ||
           event.logicalKey == LogicalKeyboardKey.browserBack ||
           event.logicalKey == LogicalKeyboardKey.escape) {
